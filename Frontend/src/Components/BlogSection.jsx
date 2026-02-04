@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { container } from "./blogAnimations";
 import BlogCard from "./BlogCard";
 import BlogModal from "./Blogmodel";
-
 const blogs = [
   {
     title: "Understanding React’s Reconciliation Algorithm",
