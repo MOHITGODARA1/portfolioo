@@ -201,7 +201,7 @@ const ProjectsLab = () => {
             ]}
             improve="Plan to integrate weather APIs, regional crop databases, yield prediction models, and multilingual support to better serve farmers across different regions."
             github="https://github.com/MOHITGODARA1/agri-tech"
-            live="https://agrotech-ai.vercel.app"
+            live="#"
           />
         </motion.div>
       </div>
