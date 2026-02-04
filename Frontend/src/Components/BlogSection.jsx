@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { container } from "./blogAnimations";
 import BlogModal from "./Blogmodel";
-import BlogCard from "./BlogCard";
+import BlogCard from "./Blogcard";
 const blogs = [
   {
     title: "Understanding React’s Reconciliation Algorithm",
