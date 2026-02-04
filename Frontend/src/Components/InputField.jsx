@@ -1,32 +1,50 @@
-import { motion } from "framer-motion";
-
-const InputField = ({ label, type = "text", placeholder, textarea }) => {
-  const Component = textarea ? "textarea" : "input";
-
+const InputField = ({
+  label,
+  name,
+  type = "text",
+  placeholder,
+  textarea,
+  value,
+  onChange,
+}) => {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-1"
-    >
-      <label className="text-sm font-medium text-gray-900">
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
         {label}
       </label>
 
-      <Component
-        type={type}
-        placeholder={placeholder}
-        rows={textarea ? 4 : undefined}
-        className="
-          w-full rounded-lg border border-gray-200
-          px-4 py-3 text-sm
-          focus:outline-none focus:ring-2 focus:ring-indigo-500/30
-          focus:border-indigo-500
-          transition-all duration-200
-        "
-      />
-    </motion.div>
+      {textarea ? (
+        <textarea
+          name={name}
+          value={value}
+          onChange={onChange}
+          rows={5}
+          required
+          placeholder={placeholder}
+          className="
+            w-full rounded-lg border border-gray-300
+            px-4 py-3 text-sm resize-none
+            focus:outline-none focus:ring-2
+            focus:ring-indigo-500/40
+          "
+        />
+      ) : (
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          required
+          placeholder={placeholder}
+          className="
+            w-full rounded-lg border border-gray-300
+            px-4 py-3 text-sm
+            focus:outline-none focus:ring-2
+            focus:ring-indigo-500/40
+          "
+        />
+      )}
+    </div>
   );
 };
 

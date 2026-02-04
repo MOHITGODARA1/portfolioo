@@ -1,43 +1,111 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { fadeUp } from "./animations";
+import { fadeUp, staggerContainer, hoverLift } from "./animations";
+import { Github, ExternalLink } from "lucide-react";
 
-const ProjectCard = ({ experiment, title, hypothesis, outcome, stack, improve }) => {
+const ProjectCard = ({
+  experiment,
+  title,
+  hypothesis,
+  outcome,
+  stack,
+  improve,
+  github,
+  live,
+}) => {
   return (
     <motion.div
       variants={fadeUp}
+      whileHover="hover"
       initial="hidden"
       whileInView="visible"
-      transition={{ duration: 0.6, ease: "easeOut" }}
-      className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm"
+      viewport={{ once: true }}
+      className="
+        bg-white border border-gray-200 rounded-2xl
+        p-8 shadow-sm
+        transition-all
+        hover:shadow-xl
+      "
     >
-      <p className="text-xs text-gray-500 mb-1">{experiment}</p>
-      <h3 className="text-xl font-semibold text-gray-900 mb-6">{title}</h3>
-
-      <div className="grid md:grid-cols-2 gap-8">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
         <div>
-          <h4 className="font-medium text-gray-900 mb-2">Hypothesis</h4>
-          <p className="text-gray-600 text-sm leading-relaxed">{hypothesis}</p>
+          <p className="text-xs tracking-widest text-indigo-600 mb-1">
+            {experiment}
+          </p>
+          <h3 className="text-2xl font-semibold text-gray-900">
+            {title}
+          </h3>
+        </div>
 
-          <h4 className="font-medium text-gray-900 mt-6 mb-2">Outcome</h4>
-          <p className="text-gray-600 text-sm leading-relaxed">{outcome}</p>
+        {/* Links */}
+        <div className="flex gap-3">
+          {github && (
+            <a
+              href={github}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+            >
+              <Github size={18} />
+            </a>
+          )}
+          {live && (
+            <a
+              href={live}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+            >
+              <ExternalLink size={18} />
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="grid md:grid-cols-2 gap-10">
+        <div>
+          <h4 className="font-medium text-gray-900 mb-2">
+            Hypothesis
+          </h4>
+          <p className="text-gray-600 text-sm leading-relaxed">
+            {hypothesis}
+          </p>
+
+          <h4 className="font-medium text-gray-900 mt-6 mb-2">
+            Outcome
+          </h4>
+          <p className="text-gray-600 text-sm leading-relaxed">
+            {outcome}
+          </p>
         </div>
 
         <div>
-          <h4 className="font-medium text-gray-900 mb-2">Tech Stack</h4>
+          <h4 className="font-medium text-gray-900 mb-2">
+            Tech Stack
+          </h4>
           <div className="flex flex-wrap gap-2 mb-6">
             {stack.map((tech) => (
               <span
                 key={tech}
-                className="px-3 py-1 text-xs bg-indigo-50 text-indigo-700 rounded"
+                className="
+                  px-3 py-1 text-xs rounded-full
+                  bg-indigo-50 text-indigo-700
+                  border border-indigo-100
+                "
               >
                 {tech}
               </span>
             ))}
           </div>
 
-          <h4 className="font-medium text-gray-900 mb-2">What I’d Improve</h4>
-          <p className="text-gray-600 text-sm leading-relaxed">{improve}</p>
+          <h4 className="font-medium text-gray-900 mb-2">
+            What I’d Improve
+          </h4>
+          <p className="text-gray-600 text-sm leading-relaxed">
+            {improve}
+          </p>
         </div>
       </div>
     </motion.div>
@@ -54,8 +122,8 @@ const ProjectsLab = () => {
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
-          transition={{ duration: 0.6 }}
-          className="text-center mb-20"
+          viewport={{ once: true }}
+          className="text-center mb-24"
         >
           <p className="text-sm tracking-widest text-indigo-600 mb-2">
             PROJECTS LAB
@@ -63,45 +131,79 @@ const ProjectsLab = () => {
           <h2 className="text-4xl md:text-5xl font-bold text-gray-900">
             Experiments & Builds
           </h2>
+          <p className="max-w-xl mx-auto mt-4 text-gray-600">
+            A collection of hands-on experiments where I test ideas,
+            learn through failure, and refine my engineering thinking.
+          </p>
         </motion.div>
 
         {/* Cards */}
-        <div className="space-y-16">
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          className="space-y-16"
+        >
           <ProjectCard
             experiment="Experiment #001"
-            title="Task Flow"
-            hypothesis="A well-designed task manager can improve daily productivity by reducing cognitive load through smart categorization."
-            outcome="Successfully built a functional task manager with drag-and-drop, categories, and priority levels. Learned state management patterns."
-            stack={["React", "TypeScript", "Tailwind CSS", "LocalStorage"]}
-            improve="Would add cloud sync and collaborative features. Improve keyboard navigation for accessibility."
+            title="Apni Dukan"
+            hypothesis="Small shopkeepers need a simple and reliable platform to order products in bulk without dealing with complex supply chains."
+            outcome="Built a B2B e-commerce platform that allows shopkeepers to browse products, place bulk orders, and manage purchasing efficiently. Focused on scalable product data, cart logic for bulk quantities, and real-world order workflows."
+            stack={["React", "Node.js","Express","MongoDB", "Tailwind CSS", "Twilio"]}
+            improve="Plan to add supplier dashboards, order analytics, credit-based purchasing, and AI-assisted product recommendations for shopkeepers."
+            github="https://github.com/MOHITGODARA1/ApniDukan"
+            live="#"
           />
 
           <ProjectCard
-            experiment="Experiment #002"
-            title="Weather Dashboard"
-            hypothesis="Presenting weather data with clear visual hierarchy makes information consumption faster and more intuitive."
-            outcome="Created an interactive dashboard with 7-day forecasts, hourly breakdowns, and location search. Practiced API integration."
-            stack={["React", "REST APIs", "Chart.js", "CSS Modules"]}
-            improve="Would implement caching strategy and offline support. Add weather alerts feature."
-          />
-          <ProjectCard
-            experiment="Experiment #003"
-            title="Smart Expense Tracker"
-            hypothesis="Tracking expenses with visual feedback and categorization helps users make better financial decisions."
-            outcome="Built an expense tracker with category-wise breakdown, monthly summaries, and charts. Improved understanding of data normalization and derived state."
-            stack={["React", "JavaScript", "Tailwind CSS", "Recharts"]}
-            improve="Would add budget limits with alerts, export to CSV, and authentication for multi-device usage."
+            experiment="Community Platform"
+            title="Unilink"
+            hypothesis="Students benefit from a dedicated platform to connect, collaborate, and share opportunities within the same university ecosystem."
+            outcome="Built a university-focused networking platform where students can connect with peers from the same institution, share posts, discover opportunities, and build academic or project-based connections. Focused on user experience, structured profiles, and secure data flow."
+            stack={["React","Node.js", "REST APIs", "MongoDB", "TailwindCSS"]}
+            improve="Plan to add university verification, real-time chat, group communities, event announcements, and AI-powered profile or opportunity recommendations."
+            github="https://github.com/MOHITGODARA1/UniLink"
+            live="https://unilink-1.onrender.com"
           />
 
           <ProjectCard
-            experiment="Experiment #004"
-            title="AI Resume Analyzer"
-            hypothesis="Providing structured feedback on resumes can significantly improve job application quality."
-            outcome="Created a resume analyzer that evaluates structure, keyword relevance, and formatting. Strengthened skills in conditional rendering and UX feedback."
-            stack={["React", "Node.js", "Express", "OpenAI API"]}
-            improve="Would improve accuracy with better prompt engineering, add ATS scoring, and support multiple resume templates."
+            experiment="AI Platform"
+            title="DocGen AI"
+            hypothesis="Students and developers need a faster way to understand unfamiliar GitHub repositories without manually exploring the entire codebase."
+            outcome="Built an AI-powered platform where users paste a GitHub repository link and receive a structured analysis of the project, including repository structure, key folders, technologies used, and overall project overview. Focused on making complex codebases easier to understand for learning and collaboration."
+            stack={[
+              "React",
+              "Node.js",
+              "Express",
+              "GitHub API",
+              "OpenAI API",
+              "Tailwind CSS",
+            ]}
+            improve="Plan to add deeper code-level analysis, auto-generated documentation, architecture diagrams, and comparison between multiple repositories."
+            github="https://github.com/MOHITGODARA1/DocGen-AI"
+            live="#"
           />
-        </div>
+
+          <ProjectCard
+            experiment="AI for Sustainability"
+            title="AgroTech AI"
+            hypothesis="Farmers can make better crop decisions when soil conditions and environmental data are analyzed intelligently instead of relying only on traditional methods."
+            outcome="Built an AI-driven platform where farmers input soil parameters such as nutrient levels, moisture, and location details to receive data-informed recommendations on the most suitable crops to grow. Focused on usability, practical insights, and real-world agricultural constraints."
+            stack={[
+              "React",
+              "Node.js",
+              "Express",
+              "Python",
+              "Machine Learning",
+              "OpenAI API",
+              "Tailwind CSS",
+            ]}
+            improve="Plan to integrate weather APIs, regional crop databases, yield prediction models, and multilingual support to better serve farmers across different regions."
+            github="https://github.com/MOHITGODARA1/agri-tech"
+            live="https://agrotech-ai.vercel.app"
+          />
+        </motion.div>
       </div>
     </section>
   );
