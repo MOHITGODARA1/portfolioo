@@ -89,5 +89,3 @@ This project is licensed under the MIT License.
 Feel free to use, modify, and distribute.
 
 ⸻
-
-⭐ If you like this project, give it a star!
