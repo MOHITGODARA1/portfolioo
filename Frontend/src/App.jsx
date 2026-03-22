@@ -1,1694 +1,1682 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import emailjs from "@emailjs/browser";
 
-emailjs.init("jSxFrOlhAOiiDJbCA");
+// Initialize EmailJS
+emailjs.init("SLU7axNetQo_WJo-3");
 
-const GLOBAL_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Unbounded:wght@400;700;900&display=swap');
+/* ══════════════════════════════════════════════
+   DESIGN TOKENS
+══════════════════════════════════════════════ */
+const C = {
+  bg:        "#080808",
+  bg1:       "#0f0f0f",
+  bg2:       "#161616",
+  bg3:       "#1e1e1e",
+  border:    "#2a2a2a",
+  border2:   "#333",
+  text:      "#ededeb",
+  muted:     "#666",
+  muted2:    "#888",
+  accent:    "#c8a96e",
+  accentDim: "#7a6030",
+  blue:      "#4a9eff",
+  green:     "#4ec9a0",
+};
+const F = {
+  serif: "'Cormorant Garamond', 'Palatino Linotype', Georgia, serif",
+  mono:  "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+  sans:  "'Plus Jakarta Sans', 'Helvetica Neue', sans-serif",
+};
 
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+/* ══════════════════════════════════════════════
+   BLOG DATA  (full articles)
+══════════════════════════════════════════════ */
+const BLOGS = [
+  {
+    id: 1,
+    tag: "Backend",
+    tagColor: C.green,
+    date: "Mar 12, 2026",
+    readTime: "7 min",
+    title: "Load Testing Node.js APIs with k6 — What I Learned",
+    excerpt: "How I reduced API latency from ~460ms to ~350ms in UniLink by profiling bottlenecks, tuning MongoDB indexes, and stress-testing under 100 virtual users.",
+    content: [
+      { type: "h2", text: "The Problem" },
+      { type: "p", text: "When UniLink went live, the first real stress test revealed something uncomfortable: our chat endpoint was averaging 460ms under load. For a real-time platform, that's a disaster. Here's how I diagnosed and fixed it." },
+      { type: "h2", text: "Setting Up k6" },
+      { type: "p", text: "k6 is a Go-based load testing tool that lets you write test scripts in JavaScript. This made it a natural fit for a Node.js stack — same mental model, zero context switching." },
+      { type: "code", lang: "javascript", text: `import http from 'k6/http';
+import { sleep, check } from 'k6';
 
-:root {
-  --bg:#030508;
-  --bg2:#080C12;
-  --surface:#0D1117;
-  --surface2:#111820;
-  --surface3:#161E28;
-  --border:#1C2535;
-  --border2:#243040;
-  --ink:#E8F0FF;
-  --ink2:#8899BB;
-  --ink3:#445566;
-  --green:#00FF88;
-  --green2:#00CC6A;
-  --green-dim:rgba(0,255,136,0.08);
-  --blue:#4DA6FF;
-  --purple:#8B6FFF;
-  --orange:#FF8C42;
-  --red:#FF4D6D;
-  --ff-head:'Unbounded',sans-serif;
-  --ff-body:'Space Grotesk',sans-serif;
-  --ff-mono:'JetBrains Mono',monospace;
-  --ease:cubic-bezier(.16,1,.3,1);
-  --r:8px; --r-lg:16px;
-}
+export const options = {
+  vus: 100,           // 100 virtual users
+  duration: '30s',    // for 30 seconds
+};
 
-html { scroll-behavior:smooth; }
-body { font-family:var(--ff-body); background:var(--bg); color:var(--ink); line-height:1.6; overflow-x:hidden; }
+export default function () {
+  const res = http.get('https://api.unilink.app/messages');
+  check(res, {
+    'status 200': (r) => r.status === 200,
+    'latency < 400ms': (r) => r.timings.duration < 400,
+  });
+  sleep(0.5);
+}` },
+      { type: "h2", text: "Finding the Bottleneck" },
+      { type: "p", text: "After running the test, the flamegraph pointed straight at a MongoDB query on the messages collection. We were doing a full collection scan because we lacked a compound index on {roomId, createdAt}. A single line of schema definition cut query time by 65%." },
+      { type: "code", lang: "javascript", text: `// Before: no index, full collection scan
+// After:
+MessageSchema.index({ roomId: 1, createdAt: -1 });` },
+      { type: "h2", text: "Results" },
+      { type: "p", text: "After indexing + enabling connection pooling (maxPoolSize: 20) and switching from synchronous bcrypt to async, p95 latency dropped from 460ms to 340ms. Zero failures across 100 VUs for 30 seconds." },
+      { type: "p", text: "The lesson: instrument before you optimise. k6's metrics dashboard told me exactly where to look — no guessing required." },
+    ],
+  },
+  {
+    id: 2,
+    tag: "AI / LLM",
+    tagColor: C.accent,
+    date: "Feb 28, 2026",
+    readTime: "9 min",
+    title: "Building DocGen AI — Using AST + GPT to Auto-Document Code",
+    excerpt: "How I combined Python AST parsing with the ChatGPT API to generate structured architecture docs for any GitHub repository — cutting manual effort by 70%.",
+    content: [
+      { type: "h2", text: "Why Auto-Documentation?" },
+      { type: "p", text: "Every developer knows the pain: you clone a repo, stare at 40 files, and have zero idea where to start. DocGen AI solves this by generating architecture summaries and function-level docs automatically." },
+      { type: "h2", text: "The Architecture" },
+      { type: "p", text: "The pipeline has three stages: (1) clone + parse the repository with Python's AST module, (2) serialize the syntax tree into a structured JSON payload, (3) pass that payload to GPT-4 with a carefully crafted prompt." },
+      { type: "code", lang: "python", text: `import ast
+import json
 
-body::before {
-  content:''; position:fixed; inset:0; z-index:1000; pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px);
-}
+def parse_file(filepath):
+    with open(filepath, 'r') as f:
+        source = f.read()
 
-::-webkit-scrollbar { width:3px; }
-::-webkit-scrollbar-track { background:var(--bg); }
-::-webkit-scrollbar-thumb { background:var(--green); border-radius:2px; }
+    tree = ast.parse(source)
+    result = { 'functions': [], 'classes': [], 'imports': [] }
 
-#progress-bar { position:fixed; top:0; left:0; height:1px; background:linear-gradient(90deg,var(--green),var(--blue)); width:0%; z-index:9999; }
-#bg-canvas { position:fixed; inset:0; z-index:0; pointer-events:none; }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            result['functions'].append({
+                'name': node.name,
+                'args': [a.arg for a in node.args.args],
+                'lineno': node.lineno,
+                'docstring': ast.get_docstring(node)
+            })
+        elif isinstance(node, ast.ClassDef):
+            result['classes'].append({'name': node.name})
 
-nav {
-  position:fixed; top:0; width:100%; z-index:100;
-  padding:0 max(24px,5vw);
-  background:rgba(3,5,8,0.9); backdrop-filter:blur(20px);
-  border-bottom:1px solid var(--border);
-}
-.nav-inner { max-width:1300px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; height:60px; }
-.nav-logo { display:flex; align-items:center; gap:8px; font-family:var(--ff-mono); font-weight:500; font-size:13px; text-decoration:none; color:var(--green); letter-spacing:.06em; }
-.nav-logo-bracket { color:var(--ink3); }
-.nav-links { display:flex; align-items:center; gap:24px; list-style:none; }
-.nav-links a { font-family:var(--ff-mono); font-size:11px; color:var(--ink3); text-decoration:none; letter-spacing:.05em; transition:color .2s; position:relative; }
-.nav-links a::before { content:'//'; position:absolute; left:-18px; color:var(--green); opacity:0; transition:opacity .2s; font-size:10px; }
-.nav-links a:hover { color:var(--ink); }
-.nav-links a:hover::before { opacity:1; }
-.btn-nav { padding:7px 16px; border-radius:4px; border:1px solid var(--green); color:var(--green); font-family:var(--ff-mono); font-size:11px; cursor:pointer; text-decoration:none; background:transparent; transition:all .2s; }
-.btn-nav:hover { background:var(--green); color:var(--bg); }
-.hamburger { display:none; flex-direction:column; gap:5px; cursor:pointer; padding:4px; background:none; border:none; }
-.hamburger span { display:block; width:20px; height:1px; background:var(--ink); }
+    return result` },
+      { type: "h2", text: "The GPT Prompt Strategy" },
+      { type: "p", text: "The key insight was treating GPT-4 as a senior architect, not a documentation generator. The prompt asks it to reason about module relationships and architectural decisions, not just describe what a function does." },
+      { type: "p", text: "This produced documentation that actually answers 'why does this exist' rather than 'what does this do' — a meaningful distinction when onboarding to an unfamiliar codebase." },
+    ],
+  },
+  {
+    id: 3,
+    tag: "DSA",
+    tagColor: C.blue,
+    date: "Jan 15, 2026",
+    readTime: "5 min",
+    title: "How Solving 250+ LeetCode Problems Changed How I Write Code",
+    excerpt: "Reaching a 1657 rating wasn't about grinding — it was about pattern recognition. Here are the mental models I built and how they show up in production code.",
+    content: [
+      { type: "h2", text: "The Misunderstood Purpose of LeetCode" },
+      { type: "p", text: "Most developers treat LeetCode as interview prep — a box to tick. I treated it as a mental workout. The goal wasn't to memorise solutions; it was to build instincts for recognising problem structure." },
+      { type: "h2", text: "Pattern 1: Sliding Window" },
+      { type: "p", text: "Once you understand sliding window, you stop writing O(n²) loops for subarray problems. More importantly, you start recognising it in the wild — like when optimising a rate limiter that tracks requests in a time window." },
+      { type: "code", lang: "javascript", text: `// Rate limiter using sliding window
+function isAllowed(requests, windowMs, limit, now) {
+  // Remove requests outside the window
+  while (requests.length && requests[0] < now - windowMs) {
+    requests.shift();
+  }
+  return requests.length < limit;
+}` },
+      { type: "h2", text: "Pattern 2: Two Pointers" },
+      { type: "p", text: "I now instinctively reach for two pointers whenever I'm working with sorted data or need to find pairs. This shows up when de-duplicating sorted arrays from MongoDB aggregations." },
+      { type: "h2", text: "The Real Takeaway" },
+      { type: "p", text: "After 250 problems, my code review comments changed. I started asking 'can this be O(n log n) instead of O(n²)?' — not because I was optimising prematurely, but because I could see the pattern. That instinct is worth more than any specific solution." },
+    ],
+  },
+  {
+    id: 4,
+    tag: "Architecture",
+    tagColor: "#ce9178",
+    date: "Dec 4, 2025",
+    readTime: "6 min",
+    title: "Designing MongoDB Schemas for Real-Time Collaboration Apps",
+    excerpt: "From UniLink's schema decisions — embedding vs referencing, efficient indexing, and why I chose MongoDB for this particular use case.",
+    content: [
+      { type: "h2", text: "The Core Question: Embed or Reference?" },
+      { type: "p", text: "In a collaboration app like UniLink, the most common query is 'fetch all messages in a room, sorted by time'. This shaped every schema decision. If your query pattern is known and consistent, embedding often wins." },
+      { type: "h2", text: "The Message Schema" },
+      { type: "code", lang: "javascript", text: `const MessageSchema = new Schema({
+  roomId:    { type: ObjectId, ref: 'Room', index: true },
+  sender: {
+    _id:     { type: ObjectId, ref: 'User' },
+    name:    String,
+    avatar:  String,   // denormalised for read speed
+  },
+  content:   { type: String, required: true },
+  type:      { type: String, enum: ['text','image','file'] },
+  createdAt: { type: Date,   default: Date.now },
+  readBy:    [{ type: ObjectId, ref: 'User' }],
+}, { timestamps: true });
 
-#mobile-menu { display:none; position:fixed; inset:0; top:60px; background:var(--bg); z-index:99; padding:32px 24px; flex-direction:column; gap:20px; }
-#mobile-menu.open { display:flex; }
-#mobile-menu a { font-family:var(--ff-mono); font-size:18px; color:var(--ink2); text-decoration:none; }
-#mobile-menu a:hover { color:var(--green); }
+// Compound index — the most critical optimisation
+MessageSchema.index({ roomId: 1, createdAt: -1 });` },
+      { type: "h2", text: "Why Denormalise the Sender?" },
+      { type: "p", text: "Embedding the sender's name and avatar directly into each message avoids a join on every message read. Yes, if a user changes their avatar, old messages show the old one — but in a chat context, that's acceptable. Performance > perfect consistency." },
+      { type: "p", text: "The rule I follow: denormalise data that is read far more often than it is written, and where stale data is acceptable. For usernames and avatars in chat, this holds true." },
+    ],
+  },
+];
 
-section { padding:110px max(24px,5vw); position:relative; z-index:2; }
-.container { max-width:1300px; margin:0 auto; }
+/* ══════════════════════════════════════════════
+   PREMIUM DEVELOPER AVATAR SVG
+   Flat semi-3D — professional, clean, no cartoon
+══════════════════════════════════════════════ */
+function DeveloperAvatar() {
+  return (
+    <svg
+      viewBox="0 0 480 560"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ width: "100%", height: "100%", display: "block" }}
+    >
+      <defs>
+        {/* Subtle ambient shadows */}
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="4" stdDeviation="8" floodColor="#000" floodOpacity="0.35"/>
+        </filter>
+        <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#000" floodOpacity="0.2"/>
+        </filter>
+        {/* Skin gradient — warm neutral */}
+        <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#e8b898"/>
+          <stop offset="100%" stopColor="#d49878"/>
+        </linearGradient>
+        {/* Hoodie gradient — deep slate */}
+        <linearGradient id="hoodie" x1="0%" y1="0%" x2="10%" y2="100%">
+          <stop offset="0%" stopColor="#1e2535"/>
+          <stop offset="100%" stopColor="#141b28"/>
+        </linearGradient>
+        {/* Laptop lid gradient */}
+        <linearGradient id="laptopLid" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#232323"/>
+          <stop offset="100%" stopColor="#181818"/>
+        </linearGradient>
+        {/* Screen glow */}
+        <radialGradient id="screenGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#1a3a5c" stopOpacity="0.3"/>
+          <stop offset="100%" stopColor="#0a0a0a" stopOpacity="0"/>
+        </radialGradient>
+        {/* Hair */}
+        <linearGradient id="hair" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#1a1410"/>
+          <stop offset="100%" stopColor="#0d0c0a"/>
+        </linearGradient>
+        {/* Chair back */}
+        <linearGradient id="chair" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#2a2a2a"/>
+          <stop offset="100%" stopColor="#1a1a1a"/>
+        </linearGradient>
+      </defs>
 
-.section-eyebrow { font-family:var(--ff-mono); font-size:11px; color:var(--green); letter-spacing:.15em; text-transform:uppercase; display:flex; align-items:center; gap:10px; margin-bottom:16px; }
-.section-eyebrow::before { content:''; display:block; width:32px; height:1px; background:var(--green); }
-.section-eyebrow::after  { content:''; display:block; width:16px; height:1px; background:var(--border2); }
-.section-heading { font-family:var(--ff-head); font-size:clamp(26px,3.5vw,46px); font-weight:900; letter-spacing:-.04em; line-height:1; color:var(--ink); }
-.section-heading .hl { color:var(--green); }
+      {/* ── BACKGROUND TECH ELEMENTS ── */}
+      {/* Subtle grid dots */}
+      {Array.from({length: 8}).map((_, r) =>
+        Array.from({length: 10}).map((_, c) => (
+          <circle key={`${r}-${c}`} cx={20 + c * 50} cy={20 + r * 65} r="1.2"
+            fill="#2a2a2a" opacity="0.6"/>
+        ))
+      )}
+      {/* Corner bracket decorations */}
+      <path d="M18 18 L18 34 M18 18 L34 18" stroke="#3a3a3a" strokeWidth="1.5" fill="none"/>
+      <path d="M462 18 L462 34 M462 18 L446 18" stroke="#3a3a3a" strokeWidth="1.5" fill="none"/>
+      <path d="M18 542 L18 526 M18 542 L34 542" stroke="#3a3a3a" strokeWidth="1.5" fill="none"/>
+      <path d="M462 542 L462 526 M462 542 L446 542" stroke="#3a3a3a" strokeWidth="1.5" fill="none"/>
 
-/* REVEAL ANIMATIONS */
-.reveal       { opacity:0; transform:translateY(28px);  transition:opacity .65s var(--ease), transform .65s var(--ease); }
-.reveal.visible{ opacity:1; transform:translateY(0); }
-.reveal-left  { opacity:0; transform:translateX(-32px); transition:opacity .65s var(--ease), transform .65s var(--ease); }
-.reveal-left.visible  { opacity:1; transform:translateX(0); }
-.reveal-right { opacity:0; transform:translateX(32px);  transition:opacity .65s var(--ease), transform .65s var(--ease); }
-.reveal-right.visible { opacity:1; transform:translateX(0); }
-.reveal-scale { opacity:0; transform:scale(.9); transition:opacity .6s var(--ease), transform .6s var(--ease); }
-.reveal-scale.visible { opacity:1; transform:scale(1); }
-.reveal-delay-1{transition-delay:.08s;} .reveal-delay-2{transition-delay:.16s;}
-.reveal-delay-3{transition-delay:.24s;} .reveal-delay-4{transition-delay:.32s;} .reveal-delay-5{transition-delay:.40s;}
+      {/* ── DESK SURFACE ── */}
+      <ellipse cx="240" cy="500" rx="200" ry="22" fill="#111" opacity="0.6"/>
+      <rect x="50" y="470" width="380" height="16" rx="3" fill="#141414"/>
+      <rect x="50" y="470" width="380" height="4" rx="2" fill="#1e1e1e"/>
 
-@keyframes float       { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-@keyframes pulse-glow  { 0%,100%{box-shadow:0 0 20px rgba(0,255,136,.15)} 50%{box-shadow:0 0 40px rgba(0,255,136,.35)} }
-@keyframes blink       { 0%,100%{opacity:1} 50%{opacity:0} }
-@keyframes slideUpIn   { from{transform:translateY(12px);opacity:0} to{transform:translateY(0);opacity:1} }
-@keyframes loadBarAnim { from{width:0} to{width:100%} }
-@keyframes shimmer     { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+      {/* ── CHAIR BACK ── */}
+      <rect x="170" y="330" width="18" height="160" rx="4" fill="url(#chair)"/>
+      <rect x="292" y="330" width="18" height="160" rx="4" fill="url(#chair)"/>
+      <rect x="160" y="280" width="160" height="90" rx="12" fill="url(#chair)" filter="url(#shadow)"/>
+      <rect x="165" y="285" width="150" height="80" rx="10" fill="#252525"/>
 
-@keyframes slideInFromRight {
-  from { opacity:0; transform:translateX(60px) scale(0.97); }
-  to   { opacity:1; transform:translateX(0)    scale(1); }
-}
-@keyframes slideInFromLeft {
-  from { opacity:0; transform:translateX(-60px) scale(0.97); }
-  to   { opacity:1; transform:translateX(0)     scale(1); }
-}
-@keyframes slideOutToLeft {
-  from { opacity:1; transform:translateX(0)    scale(1); }
-  to   { opacity:0; transform:translateX(-60px) scale(0.97); }
-}
-@keyframes slideOutToRight {
-  from { opacity:1; transform:translateX(0)   scale(1); }
-  to   { opacity:0; transform:translateX(60px) scale(0.97); }
-}
+      {/* ── LAPTOP ── */}
+      {/* Laptop body / trackpad area */}
+      <rect x="100" y="455" width="280" height="20" rx="4" fill="#1e1e1e" filter="url(#softShadow)"/>
+      <rect x="102" y="457" width="276" height="16" rx="3" fill="#242424"/>
+      {/* Trackpad */}
+      <rect x="200" y="460" width="80" height="10" rx="3" fill="#1a1a1a"/>
 
-/* HERO */
-#hero { min-height:100vh; display:flex; align-items:center; padding-top:100px; }
-.hero-layout { display:grid; grid-template-columns:1fr 420px; gap:80px; align-items:center; }
-.hero-prompt { font-family:var(--ff-mono); font-size:12px; color:var(--ink3); margin-bottom:20px; display:flex; align-items:center; gap:6px; }
-.hero-prompt .dollar { color:var(--green); }
-.hero-title { font-family:var(--ff-head); font-size:clamp(44px,6vw,88px); font-weight:900; letter-spacing:-.05em; line-height:.95; color:var(--ink); margin-bottom:12px; }
-.hero-title .name-green { color:var(--green); }
-.hero-role { font-family:var(--ff-mono); font-size:clamp(12px,1.4vw,15px); color:var(--ink3); margin-bottom:28px; min-height:22px; display:flex; align-items:center; gap:6px; }
-.hero-role .typed { color:var(--blue); }
-.typed-cursor { color:var(--green); animation:blink .8s infinite; }
-.hero-desc { font-size:15px; color:var(--ink2); line-height:1.75; max-width:500px; margin-bottom:40px; }
-.hero-ctas { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:48px; }
+      {/* Laptop screen hinge */}
+      <rect x="108" y="452" width="264" height="6" rx="2" fill="#1a1a1a"/>
 
-.btn-primary {
-  display:inline-flex; align-items:center; gap:8px;
-  padding:11px 22px; border-radius:4px; background:var(--green); color:var(--bg);
-  font-family:var(--ff-mono); font-size:12px; font-weight:700;
-  border:none; cursor:pointer; text-decoration:none; transition:all .25s; letter-spacing:.03em;
-  position:relative; overflow:hidden;
-}
-.btn-primary::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent); transform:translateX(-100%); transition:transform .4s; }
-.btn-primary:hover::after { transform:translateX(100%); }
-.btn-primary:hover { background:var(--green2); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,255,136,.3); }
+      {/* Laptop screen frame */}
+      <rect x="94" y="296" width="292" height="164" rx="10" fill="url(#laptopLid)" filter="url(#shadow)"/>
+      {/* Screen bezel */}
+      <rect x="100" y="302" width="280" height="152" rx="7" fill="#0d0d0d"/>
+      {/* Screen */}
+      <rect x="106" y="308" width="268" height="140" rx="4" fill="#0a1520"/>
+      {/* Screen ambient glow */}
+      <rect x="106" y="308" width="268" height="140" rx="4" fill="url(#screenGlow)"/>
 
-.btn-secondary { display:inline-flex; align-items:center; gap:8px; padding:11px 22px; border-radius:4px; background:transparent; color:var(--ink2); font-family:var(--ff-mono); font-size:12px; border:1px solid var(--border2); cursor:pointer; text-decoration:none; transition:all .2s; }
-.btn-secondary:hover { border-color:var(--ink3); color:var(--ink); transform:translateY(-2px); }
+      {/* ── IDE CODE ON SCREEN ── */}
+      {/* VSCode-style editor */}
+      {/* Left sidebar */}
+      <rect x="106" y="308" width="36" height="140" rx="4" fill="#0c1018"/>
+      {/* Sidebar icons */}
+      {[320, 336, 352, 368, 390].map((y, i) => (
+        <rect key={y} x="116" y={y} width="16" height="16" rx="3"
+          fill={i === 0 ? "#2a3a5a" : "#151820"} opacity="0.9"/>
+      ))}
+      {/* Editor lines - realistic code */}
+      {/* Line numbers */}
+      {[316, 325, 334, 343, 352, 361, 370, 379, 388, 397, 406, 415, 424, 433].map((y, i) => (
+        <text key={y} x="149" y={y} fill="#3a4050" fontSize="5.5"
+          fontFamily="monospace" textAnchor="end">{i + 1}</text>
+      ))}
+      {/* Code tokens — realistic coloring */}
+      <rect x="153" y="311" width="28" height="4.5" rx="1" fill="#569cd6" opacity=".85"/> {/* keyword */}
+      <rect x="183" y="311" width="38" height="4.5" rx="1" fill="#4ec9b0" opacity=".85"/> {/* function */}
+      <rect x="223" y="311" width="8"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
+      <rect x="233" y="311" width="22" height="4.5" rx="1" fill="#9cdcfe" opacity=".8"/>
+      <rect x="257" y="311" width="8"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
+      <rect x="267" y="311" width="40" height="4.5" rx="1" fill="#ce9178" opacity=".8"/>
 
-.btn-download {
-  display:inline-flex; align-items:center; gap:8px;
-  padding:11px 22px; border-radius:4px; background:transparent; color:var(--green);
-  font-family:var(--ff-mono); font-size:12px; border:1px solid rgba(0,255,136,.4);
-  cursor:pointer; text-decoration:none; transition:all .2s; letter-spacing:.03em;
-}
-.btn-download:hover { background:var(--green-dim); transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,255,136,.15); }
-.btn-download svg { transition:transform .2s; }
-.btn-download:hover svg { transform:translateY(2px); }
+      <rect x="157" y="320" width="22" height="4.5" rx="1" fill="#c586c0" opacity=".85"/>
+      <rect x="181" y="320" width="30" height="4.5" rx="1" fill="#4fc1ff" opacity=".8"/>
+      <rect x="213" y="320" width="6"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
+      <rect x="221" y="320" width="50" height="4.5" rx="1" fill="#ce9178" opacity=".75"/>
 
-.hero-meta { display:flex; gap:32px; align-items:center; }
-.hero-meta-item { display:flex; flex-direction:column; gap:2px; }
-.hero-meta-val { font-family:var(--ff-head); font-size:22px; font-weight:900; color:var(--green); letter-spacing:-.03em; }
-.hero-meta-label { font-family:var(--ff-mono); font-size:10px; color:var(--ink3); letter-spacing:.08em; }
-.hero-meta-sep { width:1px; height:32px; background:var(--border2); }
+      <rect x="161" y="329" width="18" height="4.5" rx="1" fill="#4fc1ff" opacity=".8"/>
+      <rect x="181" y="329" width="4"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
+      <rect x="187" y="329" width="55" height="4.5" rx="1" fill="#9cdcfe" opacity=".8"/>
+      <rect x="244" y="329" width="4"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
 
-/* TERMINAL */
-.terminal-card { background:var(--surface); border:1px solid var(--border2); border-radius:var(--r-lg); overflow:hidden; box-shadow:0 0 80px rgba(0,255,136,.06), 0 32px 80px rgba(0,0,0,.5); animation:float 4s ease-in-out infinite; }
-.terminal-bar { background:var(--surface2); padding:10px 16px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); }
-.t-dot{width:10px;height:10px;border-radius:50%;} .t-dot-r{background:#FF5F57;} .t-dot-y{background:#FEBC2E;} .t-dot-g{background:#28C840;}
-.terminal-title { font-family:var(--ff-mono); font-size:11px; color:var(--ink3); margin:0 auto; }
-.terminal-body { padding:24px; font-family:var(--ff-mono); font-size:12.5px; line-height:1.9; }
-.t-line{display:flex;gap:8px;} .t-prompt{color:var(--green);flex-shrink:0;} .t-cmd{color:var(--ink);}
-.t-out{color:var(--ink3);} .t-out .t-green{color:var(--green);} .t-out .t-blue{color:var(--blue);} .t-out .t-orange{color:var(--orange);} .t-out .t-purple{color:var(--purple);}
-.t-gap{height:8px;} .t-cursor{display:inline-block;width:8px;height:14px;background:var(--green);animation:blink .8s infinite;vertical-align:middle;}
+      <rect x="161" y="338" width="30" height="4.5" rx="1" fill="#4ec9b0" opacity=".8"/>
+      <rect x="193" y="338" width="4"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
+      <rect x="199" y="338" width="20" height="4.5" rx="1" fill="#569cd6" opacity=".8"/>
+      <rect x="221" y="338" width="40" height="4.5" rx="1" fill="#ce9178" opacity=".7"/>
 
-/* ABOUT */
-#about{background:transparent;}
-.about-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:80px;align-items:center;}
-.about-code-block{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r-lg);overflow:hidden;}
-.code-block-header{background:var(--surface2);padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);}
-.code-file{font-family:var(--ff-mono);font-size:11px;color:var(--ink3);margin-left:auto;}
-.code-content{padding:24px;font-family:var(--ff-mono);font-size:12px;line-height:2;}
-.ln{color:var(--border2);display:inline-block;width:20px;text-align:right;margin-right:16px;font-size:11px;user-select:none;}
-.kw{color:var(--purple);} .str{color:var(--orange);} .fn{color:var(--blue);} .cm{color:var(--ink3);} .ob{color:var(--ink);} .num{color:var(--green);}
-.about-body{font-size:15px;color:var(--ink2);line-height:1.8;margin-bottom:18px;}
-.about-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px;}
-.about-tag{padding:5px 12px;border-radius:4px;background:transparent;color:var(--green);font-family:var(--ff-mono);font-size:11px;border:1px solid rgba(0,255,136,.25);letter-spacing:.04em;transition:background .2s;}
-.about-tag:hover{background:var(--green-dim);}
+      <rect x="153" y="347" width="8"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
 
-/* SKILLS */
-#skills{background:transparent;}
-.skills-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1px;background:var(--border);border-radius:var(--r-lg);overflow:hidden;margin-top:56px;}
-.skill-card{background:var(--surface);padding:24px 22px;transition:background .2s;position:relative;overflow:hidden;}
-.skill-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--green),transparent);opacity:0;transition:opacity .3s;}
-.skill-card:hover{background:var(--surface2);}
-.skill-card:hover::before{opacity:1;}
-.skill-lang{font-family:var(--ff-mono);font-size:9.5px;color:var(--ink3);letter-spacing:.12em;margin-bottom:10px;}
-.skill-name{font-family:var(--ff-head);font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px;letter-spacing:-.02em;}
-.skill-desc{font-size:12px;color:var(--ink3);line-height:1.6;margin-bottom:14px;}
-.skill-bar-track{height:2px;background:var(--border);border-radius:100px;overflow:hidden;}
-.skill-bar-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--blue));border-radius:100px;width:0%;transition:width 1.4s var(--ease);}
-.skill-pct{font-family:var(--ff-mono);font-size:10px;color:var(--ink3);margin-top:5px;}
+      {/* Empty line */}
+      <rect x="153" y="356" width="55" height="4.5" rx="1" fill="#569cd6" opacity=".8"/>
+      <rect x="210" y="356" width="30" height="4.5" rx="1" fill="#d4d4d4" opacity=".6"/>
 
-/* ========= HORIZONTAL CAROUSEL SECTION ========= */
-.carousel-section {
-  padding: 110px max(24px,5vw);
-  position: relative;
-  z-index: 2;
-}
+      <rect x="157" y="365" width="25" height="4.5" rx="1" fill="#c586c0" opacity=".85"/>
+      <rect x="184" y="365" width="45" height="4.5" rx="1" fill="#4fc1ff" opacity=".8"/>
 
-/* Header row: eyebrow + heading + nav controls inline */
-.carousel-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: 48px;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-.carousel-header-left {}
+      <rect x="161" y="374" width="35" height="4.5" rx="1" fill="#9cdcfe" opacity=".8"/>
+      <rect x="198" y="374" width="4"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
+      <rect x="204" y="374" width="60" height="4.5" rx="1" fill="#ce9178" opacity=".7"/>
 
-.carousel-controls {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
-}
+      <rect x="153" y="383" width="8"  height="4.5" rx="1" fill="#d4d4d4" opacity=".7"/>
 
-.carousel-counter-inline {
-  font-family: var(--ff-mono);
-  font-size: 12px;
-  color: var(--ink3);
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-.carousel-counter-inline .cur { color: var(--green); font-size: 22px; font-family: var(--ff-head); font-weight: 900; }
+      {/* Cursor */}
+      <rect x="153" y="392" width="2" height="7" rx="0.5" fill="#aeafad" opacity="0.9">
+        <animate attributeName="opacity" values="0.9;0;0.9" dur="1.1s" repeatCount="indefinite"/>
+      </rect>
 
-.carousel-nav-btns {
-  display: flex;
-  gap: 8px;
-}
-.carousel-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 8px;
-  border: 1px solid var(--border2);
-  background: var(--surface);
-  color: var(--ink2);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 17px;
-  transition: all .2s var(--ease);
-  user-select: none;
-}
-.carousel-btn:hover:not(:disabled) {
-  background: var(--green);
-  color: var(--bg);
-  border-color: var(--green);
-  box-shadow: 0 6px 18px rgba(0,255,136,.3);
-}
-.carousel-btn:disabled { opacity:.28; cursor:not-allowed; }
+      {/* Status bar */}
+      <rect x="106" y="442" width="268" height="6" rx="0" fill="#007acc" opacity="0.8"/>
+      <rect x="112" y="443.5" width="30" height="3" rx="1" fill="rgba(255,255,255,.4)"/>
+      <rect x="310" y="443.5" width="25" height="3" rx="1" fill="rgba(255,255,255,.3)"/>
 
-/* Progress bar */
-.carousel-progress-track {
-  height: 2px;
-  background: var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: 40px;
-}
-.carousel-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--green), var(--blue));
-  border-radius: 2px;
-  transition: width .5s var(--ease);
-}
+      {/* Apple logo hint */}
+      <ellipse cx="240" cy="280" rx="10" ry="11" fill="#1a1a1a"/>
+      <ellipse cx="240" cy="278" rx="7" ry="8" fill="#232323"/>
 
-/* Dot indicators */
-.carousel-dots {
-  display: flex;
-  gap: 10px;
-  margin-top: 28px;
-  justify-content: center;
-}
-.carousel-dot-pip {
-  width: 28px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--border2);
-  cursor: pointer;
-  transition: all .3s var(--ease);
-}
-.carousel-dot-pip.active {
-  background: var(--green);
-  width: 48px;
-  box-shadow: 0 0 8px rgba(0,255,136,.5);
-}
+      {/* ── BODY / HOODIE ── */}
+      {/* Main torso */}
+      <path d="M138 440 C130 410 120 390 115 370 L148 350 L168 390 L240 400 L312 390 L332 350 L365 370 C360 390 350 410 362 440 Z"
+        fill="url(#hoodie)" filter="url(#shadow)"/>
+      {/* Hoodie front panel */}
+      <path d="M210 395 L240 405 L270 395 L275 440 L205 440 Z" fill="#192030" opacity="0.5"/>
+      {/* Hoodie pocket */}
+      <rect x="200" y="415" width="80" height="28" rx="4" fill="#162030" opacity="0.6"/>
+      <line x1="240" y1="415" x2="240" y2="443" stroke="#1e2a3a" strokeWidth="1.5"/>
+      {/* Hoodie drawstrings */}
+      <path d="M228 400 C224 412 222 425 220 440" stroke="#1a2535" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      <path d="M252 400 C256 412 258 425 260 440" stroke="#1a2535" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      {/* Hood back */}
+      <path d="M170 290 Q185 270 240 265 Q295 270 310 290 Q300 310 240 315 Q180 310 170 290Z"
+        fill="#1a2030" opacity="0.7"/>
+      {/* Collar area */}
+      <path d="M195 350 Q215 370 240 373 Q265 370 285 350 L280 340 Q260 355 240 358 Q220 355 200 340Z"
+        fill="#162030"/>
 
-/* Scroll hint */
-.carousel-scroll-hint {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--ink3);
-  margin-top: 20px;
-  justify-content: center;
-}
-.scroll-hint-arrow {
-  display: flex;
-  gap: 3px;
-}
-.scroll-hint-arrow span {
-  display: block;
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid var(--green);
-  border-bottom: 1.5px solid var(--green);
-  transform: rotate(-45deg);
-  animation: arrowPulse 1.2s ease-in-out infinite;
-}
-.scroll-hint-arrow span:nth-child(2) { animation-delay: .15s; opacity:.7; }
-.scroll-hint-arrow span:nth-child(3) { animation-delay: .30s; opacity:.4; }
-@keyframes arrowPulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+      {/* ── ARMS ── */}
+      {/* Left arm */}
+      <path d="M138 440 C110 430 90 420 80 400 C72 382 75 365 85 355 L105 365 C96 372 95 383 100 395 C108 408 130 418 148 430Z"
+        fill="url(#hoodie)"/>
+      {/* Left hand on keyboard */}
+      <ellipse cx="85" cy="462" rx="26" ry="14" fill="url(#skin)" transform="rotate(-8,85,462)" filter="url(#softShadow)"/>
+      {/* Left fingers */}
+      <rect x="64" y="453" width="10" height="16" rx="5" fill="url(#skin)" transform="rotate(-12,64,453)"/>
+      <rect x="77" y="450" width="10" height="17" rx="5" fill="url(#skin)" transform="rotate(-6,77,450)"/>
+      <rect x="90" y="449" width="10" height="17" rx="5" fill="url(#skin)" transform="rotate(0,90,449)"/>
+      <rect x="103" y="451" width="9"  height="16" rx="4.5" fill="url(#skin)" transform="rotate(6,103,451)"/>
 
-/* Card viewport */
-.carousel-viewport {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--r-lg);
-  min-height: 480px;
-}
+      {/* Right arm */}
+      <path d="M362 440 C390 430 410 420 420 400 C428 382 425 365 415 355 L395 365 C404 372 405 383 400 395 C392 408 370 418 352 430Z"
+        fill="url(#hoodie)"/>
+      {/* Right hand on keyboard */}
+      <ellipse cx="395" cy="462" rx="26" ry="14" fill="url(#skin)" transform="rotate(8,395,462)" filter="url(#softShadow)"/>
+      {/* Right fingers */}
+      <rect x="376" y="451" width="9"  height="16" rx="4.5" fill="url(#skin)" transform="rotate(-6,376,451)"/>
+      <rect x="389" y="449" width="10" height="17" rx="5" fill="url(#skin)" transform="rotate(0,389,449)"/>
+      <rect x="402" y="450" width="10" height="17" rx="5" fill="url(#skin)" transform="rotate(6,402,450)"/>
+      <rect x="415" y="453" width="10" height="16" rx="5" fill="url(#skin)" transform="rotate(12,415,453)"/>
 
-.carousel-card-slot {
-  position: absolute;
-  inset: 0;
-}
-.carousel-card-slot.entering-right { animation: slideInFromRight .5s var(--ease) forwards; }
-.carousel-card-slot.entering-left  { animation: slideInFromLeft  .5s var(--ease) forwards; }
-.carousel-card-slot.leaving-left   { animation: slideOutToLeft   .4s var(--ease) forwards; pointer-events:none; }
-.carousel-card-slot.leaving-right  { animation: slideOutToRight  .4s var(--ease) forwards; pointer-events:none; }
+      {/* ── NECK ── */}
+      <rect x="222" y="295" width="36" height="58" rx="10" fill="url(#skin)"/>
+      {/* Neck shadow */}
+      <path d="M222 335 Q240 342 258 335 L258 353 Q240 360 222 353Z" fill="#c07858" opacity="0.25"/>
 
-/* ─── SPLIT PROJECT CARD ─── */
-.proj-split-card {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  height: 100%;
-  min-height: 480px;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  transition: box-shadow .3s;
-}
-.proj-split-card:hover {
-  box-shadow: 0 0 0 1px rgba(0,255,136,.1), 0 32px 80px rgba(0,0,0,.5);
-}
+      {/* ── HEAD ── */}
+      {/* Head shape */}
+      <ellipse cx="240" cy="210" rx="74" ry="84" fill="url(#skin)" filter="url(#shadow)"/>
+      {/* Jaw taper */}
+      <path d="M175 230 Q180 280 240 292 Q300 280 305 230" fill="url(#skin)"/>
+      {/* Jaw shadow */}
+      <path d="M190 265 Q215 278 240 280 Q265 278 290 265" fill="#c07858" opacity="0.12"/>
 
-/* Left: visual panel */
-.proj-visual {
-  position: relative;
-  background: var(--surface2);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-right: 1px solid var(--border);
-}
-.proj-visual-top {
-  flex: 1;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 260px;
-}
-.proj-visual-gradient {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 40% 40%, rgba(0,255,136,.07) 0%, transparent 65%),
-              radial-gradient(ellipse at 80% 80%, rgba(77,166,255,.05) 0%, transparent 60%);
-}
-.proj-icon-wrap {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-}
-.proj-icon-circle {
-  width: 90px;
-  height: 90px;
-  border-radius: 22px;
-  background: var(--surface3);
-  border: 1px solid var(--border2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-  box-shadow: 0 0 40px rgba(0,255,136,.08);
-  transition: transform .3s var(--ease), box-shadow .3s;
-}
-.proj-split-card:hover .proj-icon-circle {
-  transform: scale(1.06);
-  box-shadow: 0 0 60px rgba(0,255,136,.18);
-}
-.proj-type-tag {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--green);
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  padding: 4px 10px;
-  border: 1px solid rgba(0,255,136,.2);
-  border-radius: 3px;
-  background: rgba(0,255,136,.04);
-}
-.proj-code-bg {
-  position: absolute;
-  inset: 0;
-  font-family: var(--ff-mono);
-  font-size: 9.5px;
-  line-height: 1.9;
-  color: rgba(255,255,255,.028);
-  padding: 16px;
-  user-select: none;
-  white-space: pre;
-  overflow: hidden;
-  z-index: 0;
-}
-.proj-visual-bottom {
-  padding: 20px 24px;
-  border-top: 1px solid var(--border);
-  background: rgba(0,0,0,.2);
-}
-.proj-num-label {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--ink3);
-  letter-spacing: .1em;
-  margin-bottom: 10px;
-}
-.proj-stat-row {
-  display: flex;
-  gap: 16px;
-}
-.proj-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.proj-stat-val {
-  font-family: var(--ff-head);
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--green);
-  letter-spacing: -.02em;
-}
-.proj-stat-key {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--ink3);
-  letter-spacing: .08em;
-}
+      {/* Ear left */}
+      <ellipse cx="167" cy="215" rx="11" ry="15" fill="#d4906e"/>
+      <ellipse cx="169" cy="215" rx="7" ry="10" fill="#c07858"/>
+      {/* Ear inner */}
+      <path d="M165 207 Q162 215 165 223" stroke="#b06848" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
 
-/* Right: description panel */
-.proj-desc-panel {
-  padding: 36px 36px 28px;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
-.proj-desc-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-.proj-title-wrap {}
-.proj-main-title {
-  font-family: var(--ff-head);
-  font-size: 22px;
-  font-weight: 900;
-  color: var(--ink);
-  letter-spacing: -.04em;
-  line-height: 1.1;
-  margin-bottom: 6px;
-}
-.proj-sub-title {
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  color: var(--green);
-  letter-spacing: .04em;
-}
-.proj-action-links {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-left: 12px;
-}
-.icon-btn{width:34px;height:34px;border-radius:7px;border:1px solid var(--border2);background:transparent;display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--ink3);transition:all .2s;flex-shrink:0;}
-.icon-btn:hover{background:var(--green);color:var(--bg);border-color:var(--green);transform:scale(1.08);}
-.icon-btn svg{width:14px;height:14px;}
+      {/* Ear right */}
+      <ellipse cx="313" cy="215" rx="11" ry="15" fill="#d4906e"/>
+      <ellipse cx="311" cy="215" rx="7" ry="10" fill="#c07858"/>
+      <path d="M315 207 Q318 215 315 223" stroke="#b06848" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
 
-.proj-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 18px 0;
-}
-.proj-full-desc {
-  font-size: 14px;
-  color: var(--ink2);
-  line-height: 1.8;
-  margin-bottom: 20px;
-  flex: 1;
-}
-.proj-section-label {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--ink3);
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  margin-bottom: 10px;
-}
-.proj-tech-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-bottom: 20px;
-}
-.tech-pill{padding:4px 10px;border-radius:4px;background:var(--surface3);color:var(--ink3);font-family:var(--ff-mono);font-size:10px;border:1px solid var(--border);transition:border-color .2s,color .2s;}
-.tech-pill:hover{border-color:rgba(0,255,136,.3);color:var(--ink2);}
+      {/* ── HAIR ── */}
+      {/* Main hair mass */}
+      <path d="M170 195 Q172 130 240 120 Q308 130 310 195 Q300 155 240 148 Q180 155 170 195Z"
+        fill="url(#hair)"/>
+      {/* Hair top volume */}
+      <path d="M176 175 Q182 118 240 112 Q298 118 304 175 Q290 138 240 133 Q190 138 176 175Z"
+        fill="#131210"/>
+      {/* Side hair left */}
+      <path d="M170 190 L166 240 Q168 248 175 248 L178 210 Z" fill="url(#hair)"/>
+      {/* Side hair right */}
+      <path d="M310 190 L314 240 Q312 248 305 248 L302 210 Z" fill="url(#hair)"/>
+      {/* Hair texture lines */}
+      <path d="M195 130 Q220 118 240 115" stroke="#0d0c0a" strokeWidth="1.5" fill="none" opacity="0.5" strokeLinecap="round"/>
+      <path d="M260 118 Q280 122 298 135" stroke="#0d0c0a" strokeWidth="1.5" fill="none" opacity="0.5" strokeLinecap="round"/>
 
-.proj-roadmap {
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: var(--bg2);
-  border-left: 2px solid var(--green);
-}
-.proj-roadmap-head {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--green);
-  letter-spacing: .1em;
-  margin-bottom: 5px;
-}
-.proj-roadmap-text {
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  color: var(--ink3);
-  line-height: 1.65;
-}
+      {/* ── EYEBROWS ── */}
+      {/* Left eyebrow — slight arch, confident */}
+      <path d="M190 182 Q208 174 222 178" stroke="#1a1208" strokeWidth="4"
+        strokeLinecap="round" fill="none"/>
+      <path d="M190 182 Q208 174 222 178" stroke="#2a1e10" strokeWidth="2"
+        strokeLinecap="round" fill="none" opacity="0.5"/>
+      {/* Right eyebrow */}
+      <path d="M258 178 Q272 174 290 182" stroke="#1a1208" strokeWidth="4"
+        strokeLinecap="round" fill="none"/>
+      <path d="M258 178 Q272 174 290 182" stroke="#2a1e10" strokeWidth="2"
+        strokeLinecap="round" fill="none" opacity="0.5"/>
 
-/* ─── CERT SPLIT CARD ─── */
-.cert-split-card {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  height: 100%;
-  min-height: 420px;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-.cert-split-card:hover {
-  box-shadow: 0 0 0 1px rgba(0,255,136,.1), 0 32px 80px rgba(0,0,0,.5);
-}
-.cert-visual {
-  background: var(--surface2);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 28px;
-  position: relative;
-  overflow: hidden;
-}
-.cert-visual-glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 50% 40%, rgba(77,166,255,.07) 0%, transparent 65%);
-}
-.cert-badge-big {
-  position: relative;
-  z-index: 1;
-  width: 100px;
-  height: 100px;
-  border-radius: 24px;
-  background: var(--surface3);
-  border: 1px solid var(--border2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 44px;
-  margin-bottom: 20px;
-  box-shadow: 0 0 50px rgba(77,166,255,.1);
-  transition: transform .3s var(--ease);
-}
-.cert-split-card:hover .cert-badge-big { transform: scale(1.05) rotate(-2deg); }
-.cert-issuer-big {
-  position: relative;
-  z-index: 1;
-  font-family: var(--ff-head);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: -.02em;
-  margin-bottom: 8px;
-  text-align: center;
-}
-.cert-verified-big {
-  position: relative;
-  z-index: 1;
-  padding: 4px 12px;
-  border-radius: 4px;
-  background: rgba(0,255,136,.08);
-  border: 1px solid rgba(0,255,136,.25);
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--green);
-  letter-spacing: .08em;
-}
-.cert-desc-panel {
-  padding: 36px 36px 28px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.cert-index {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--ink3);
-  letter-spacing: .1em;
-  margin-bottom: 14px;
-}
-.cert-main-title {
-  font-family: var(--ff-head);
-  font-size: 19px;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: -.04em;
-  line-height: 1.25;
-  margin-bottom: 10px;
-}
-.cert-issuer-label {
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  color: var(--blue);
-  margin-bottom: 20px;
-}
-.cert-divider {
-  height: 1px;
-  background: var(--border);
-  margin-bottom: 20px;
-}
-.cert-date-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  color: var(--ink3);
-  margin-bottom: 24px;
-}
-.cert-date-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  flex-shrink: 0;
-}
-.cert-cta-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border-radius: 6px;
-  background: transparent;
-  border: 1px solid rgba(0,255,136,.3);
-  color: var(--green);
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  text-decoration: none;
-  transition: all .2s;
-  width: fit-content;
-}
-.cert-cta-link:hover {
-  background: var(--green-dim);
-  border-color: var(--green);
-  gap: 12px;
-}
+      {/* ── EYES ── */}
+      {/* Eye whites */}
+      <ellipse cx="207" cy="205" rx="18" ry="13" fill="white"/>
+      <ellipse cx="273" cy="205" rx="18" ry="13" fill="white"/>
+      {/* Eye socket shadow */}
+      <ellipse cx="207" cy="200" rx="18" ry="8" fill="#e0a880" opacity="0.2"/>
+      <ellipse cx="273" cy="200" rx="18" ry="8" fill="#e0a880" opacity="0.2"/>
+      {/* Iris */}
+      <circle cx="208" cy="206" r="9" fill="#2a1e14"/>
+      <circle cx="274" cy="206" r="9" fill="#2a1e14"/>
+      {/* Iris color ring */}
+      <circle cx="208" cy="206" r="7.5" fill="#3d2e1e"/>
+      <circle cx="274" cy="206" r="7.5" fill="#3d2e1e"/>
+      {/* Pupil */}
+      <circle cx="209" cy="207" r="5" fill="#0a0806"/>
+      <circle cx="275" cy="207" r="5" fill="#0a0806"/>
+      {/* Eye shine — dual catch lights */}
+      <circle cx="213" cy="203" r="2.5" fill="white" opacity="0.9"/>
+      <circle cx="211" cy="208" r="1.2" fill="white" opacity="0.4"/>
+      <circle cx="279" cy="203" r="2.5" fill="white" opacity="0.9"/>
+      <circle cx="277" cy="208" r="1.2" fill="white" opacity="0.4"/>
+      {/* Upper lash line */}
+      <path d="M190 198 Q207 193 224 198" stroke="#1a1210" strokeWidth="2.5"
+        strokeLinecap="round" fill="none"/>
+      <path d="M256 198 Q273 193 290 198" stroke="#1a1210" strokeWidth="2.5"
+        strokeLinecap="round" fill="none"/>
+      {/* Lower lash */}
+      <path d="M192 212 Q207 216 222 212" stroke="#b07858" strokeWidth="1"
+        fill="none" opacity="0.35"/>
+      <path d="M258 212 Q273 216 288 212" stroke="#b07858" strokeWidth="1"
+        fill="none" opacity="0.35"/>
 
-/* Image overrides when real img is provided */
-.proj-visual-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center top;
-  z-index: 1;
-  transition: transform .5s var(--ease);
-}
-.proj-split-card:hover .proj-visual-img { transform: scale(1.03); }
+      {/* ── NOSE ── */}
+      <path d="M234 218 Q230 236 226 242 Q233 246 240 247 Q247 246 254 242 Q250 236 246 218Z"
+        fill="#c07858" opacity="0.28"/>
+      {/* Nostril shadows */}
+      <ellipse cx="229" cy="242" rx="6" ry="4" fill="#a86040" opacity="0.3" transform="rotate(-15,229,242)"/>
+      <ellipse cx="251" cy="242" rx="6" ry="4" fill="#a86040" opacity="0.3" transform="rotate(15,251,242)"/>
+      {/* Nose bridge highlight */}
+      <path d="M238 208 Q239 222 238 234" stroke="#e0b890" strokeWidth="1"
+        fill="none" opacity="0.3" strokeLinecap="round"/>
 
-.proj-img-overlay-dark {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background: linear-gradient(
-    to bottom,
-    rgba(3,5,8,0.15) 0%,
-    rgba(3,5,8,0.05) 50%,
-    rgba(3,5,8,0.75) 100%
+      {/* ── MOUTH ── */}
+      {/* Lips — slight confident smile */}
+      <path d="M214 262 Q227 272 240 273 Q253 272 266 262" stroke="#a86050" strokeWidth="3"
+        strokeLinecap="round" fill="none"/>
+      {/* Upper lip line */}
+      <path d="M218 260 Q226 256 233 258 Q240 260 247 258 Q254 256 262 260"
+        stroke="#904838" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.5"/>
+      {/* Lip fill */}
+      <path d="M218 262 Q240 272 262 262 Q255 270 240 271 Q225 270 218 262Z"
+        fill="#c07060" opacity="0.2"/>
+      {/* Smile dimples */}
+      <circle cx="212" cy="263" r="2" fill="#b07060" opacity="0.2"/>
+      <circle cx="268" cy="263" r="2" fill="#b07060" opacity="0.2"/>
+
+      {/* ── GLASSES ── */}
+      {/* Glass frames — thin, modern, rectangular */}
+      <rect x="185" y="196" width="46" height="28" rx="8" fill="none"
+        stroke="#252525" strokeWidth="2.8"/>
+      <rect x="249" y="196" width="46" height="28" rx="8" fill="none"
+        stroke="#252525" strokeWidth="2.8"/>
+      {/* Bridge */}
+      <path d="M231 209 Q240 211 249 209" stroke="#252525" strokeWidth="2.5"
+        strokeLinecap="round" fill="none"/>
+      {/* Temple left */}
+      <path d="M185 208 Q172 210 167 215" stroke="#252525" strokeWidth="2.2"
+        strokeLinecap="round" fill="none"/>
+      {/* Temple right */}
+      <path d="M295 208 Q308 210 313 215" stroke="#252525" strokeWidth="2.2"
+        strokeLinecap="round" fill="none"/>
+      {/* Lens tint — very subtle blue */}
+      <rect x="186" y="197" width="44" height="26" rx="7" fill="#4a9eff" opacity="0.04"/>
+      <rect x="250" y="197" width="44" height="26" rx="7" fill="#4a9eff" opacity="0.04"/>
+      {/* Lens reflection */}
+      <path d="M190 200 L196 205" stroke="white" strokeWidth="1.5"
+        strokeLinecap="round" opacity="0.15"/>
+      <path d="M254 200 L260 205" stroke="white" strokeWidth="1.5"
+        strokeLinecap="round" opacity="0.15"/>
+
+      {/* ── HEADPHONES (around neck) ── */}
+      <path d="M178 268 Q180 240 178 225" stroke="#2a2a2a" strokeWidth="6"
+        strokeLinecap="round" fill="none"/>
+      <path d="M302 268 Q300 240 302 225" stroke="#2a2a2a" strokeWidth="6"
+        strokeLinecap="round" fill="none"/>
+      <path d="M178 225 Q190 205 240 200 Q290 205 302 225" stroke="#2a2a2a"
+        strokeWidth="5" fill="none"/>
+      {/* Ear cups */}
+      <rect x="168" y="255" width="20" height="28" rx="8" fill="#222"/>
+      <rect x="170" y="257" width="16" height="24" rx="6" fill="#2a2a2a"/>
+      <rect x="292" y="255" width="20" height="28" rx="8" fill="#222"/>
+      <rect x="294" y="257" width="16" height="24" rx="6" fill="#2a2a2a"/>
+
+      {/* ── COFFEE MUG ── */}
+      <rect x="40" y="440" width="38" height="32" rx="5" fill="#1e1e1e"/>
+      <rect x="42" y="442" width="34" height="28" rx="4" fill="#242424"/>
+      {/* Mug handle */}
+      <path d="M78 448 Q92 448 92 456 Q92 464 78 464"
+        fill="none" stroke="#1e1e1e" strokeWidth="5" strokeLinecap="round"/>
+      <path d="M78 449 Q89 449 89 456 Q89 463 78 463"
+        fill="none" stroke="#2a2a2a" strokeWidth="3" strokeLinecap="round"/>
+      {/* Coffee liquid */}
+      <rect x="43" y="443" width="32" height="10" rx="3" fill="#1a1208"/>
+      {/* Steam */}
+      <path d="M52 438 C50 430 54 424 52 416" stroke="#3a3a3a" strokeWidth="1.8"
+        strokeLinecap="round" fill="none">
+        <animate attributeName="opacity" values="0.6;0.1;0.6" dur="2.2s" repeatCount="indefinite"/>
+        <animate attributeName="d" values="M52 438 C50 430 54 424 52 416;M52 438 C54 430 50 424 52 416;M52 438 C50 430 54 424 52 416" dur="2.2s" repeatCount="indefinite"/>
+      </path>
+      <path d="M60 436 C58 427 62 421 60 413" stroke="#3a3a3a" strokeWidth="1.8"
+        strokeLinecap="round" fill="none">
+        <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.8s" repeatCount="indefinite"/>
+      </path>
+      {/* Mug label */}
+      <rect x="48" y="453" width="22" height="12" rx="2" fill="#1a1a1a"/>
+      <rect x="50" y="455" width="14" height="2" rx="1" fill="#3a6a9a" opacity="0.6"/>
+      <rect x="50" y="459" width="10" height="2" rx="1" fill="#3a6a9a" opacity="0.4"/>
+
+      {/* ── PHONE (on desk) ── */}
+      <rect x="400" y="443" width="26" height="44" rx="5" fill="#1a1a1a"/>
+      <rect x="402" y="445" width="22" height="40" rx="4" fill="#0d0d0d"/>
+      <rect x="404" y="447" width="18" height="32" rx="2" fill="#0a1520"/>
+      {/* Phone screen content - small app UI */}
+      {[450, 456, 462, 468, 474].map(y => (
+        <rect key={y} x="405" y={y} width={y === 450 ? 14 : 10} height="3" rx="1.5"
+          fill={y === 450 ? "#4a9eff" : "#2a3040"} opacity="0.7"/>
+      ))}
+      {/* Phone notch */}
+      <rect x="409" y="445" width="8" height="3" rx="1.5" fill="#080808"/>
+      {/* Home indicator */}
+      <rect x="410" y="482" width="6" height="2" rx="1" fill="#2a2a2a"/>
+
+      {/* ── SUBTLE GLOW from screen on face ── */}
+      <ellipse cx="240" cy="260" rx="110" ry="80" fill="#1a3a5c" opacity="0.04"/>
+
+      {/* ── FLOOR SHADOW ── */}
+      <ellipse cx="240" cy="530" rx="170" ry="18" fill="#000" opacity="0.35"/>
+    </svg>
   );
 }
 
-/* Cert image fills the left panel */
-.cert-visual-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  z-index: 0;
-  transition: transform .5s var(--ease);
-  border-radius: 0;
+/* ══════════════════════════════════════════════
+   PROJECT SCREENSHOT SVG
+══════════════════════════════════════════════ */
+function ProjectShot({ title, idx }) {
+  const acs = [C.accent, C.green, C.blue];
+  const ac = acs[idx % 3];
+  return (
+    <svg viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg"
+      style={{ width: "100%", height: "100%", display: "block" }}>
+      <rect width="560" height="300" fill="#0d1117"/>
+      {/* Browser bar */}
+      <rect width="560" height="28" fill="#161b22"/>
+      <circle cx="14" cy="14" r="4.5" fill="#e05a5a"/>
+      <circle cx="27" cy="14" r="4.5" fill="#e0aa5a"/>
+      <circle cx="40" cy="14" r="4.5" fill="#5ae05a" opacity=".7"/>
+      <rect x="60" y="7" width="400" height="14" rx="7" fill="#0d1117"/>
+      <text x="260" y="18" textAnchor="middle" fill="#4a5568" fontSize="8" fontFamily="monospace">
+        {title.toLowerCase().replace(/\s+/g, '-')}.vercel.app
+      </text>
+      {/* Sidebar */}
+      <rect x="0" y="28" width="160" height="272" fill="#0a0f18"/>
+      <rect x="0" y="28" width="160" height="272" fill={ac} opacity="0.03"/>
+      {[0,1,2,3,4,5].map(i => (
+        <g key={i}>
+          <rect x="14" y={46 + i*32} width="14" height="14" rx="3"
+            fill={i===0 ? ac : "#1e2433"} opacity={i===0 ? .7 : 1}/>
+          <rect x="34" y={49 + i*32} width={i===0 ? 80 : 60+(i%3)*10} height="6"
+            rx="3" fill={i===0 ? ac : "#1e2433"} opacity={i===0 ? .6 : 1}/>
+        </g>
+      ))}
+      {/* Main content */}
+      <rect x="160" y="28" width="400" height="272" fill="#0d1117"/>
+      {/* Top bar */}
+      <rect x="160" y="28" width="400" height="38" fill="#161b22"/>
+      <rect x="174" y="38" width="80" height="8" rx="4" fill={ac} opacity=".6"/>
+      <rect x="468" y="36" width="70" height="12" rx="6" fill={ac} opacity=".15"/>
+      <rect x="474" y="39" width="58" height="6" rx="3" fill={ac} opacity=".4"/>
+      {/* Cards row */}
+      {[0,1,2].map(i => (
+        <g key={i}>
+          <rect x={174+i*126} y="84" width="114" height="68" rx="6" fill="#161b22"/>
+          <rect x={182+i*126} y="92" width="50" height="7" rx="3.5" fill={ac} opacity=".5"/>
+          <rect x={182+i*126} y="105" width="90" height="5" rx="2.5" fill="#1e2433"/>
+          <rect x={182+i*126} y="115" width="70" height="5" rx="2.5" fill="#1e2433"/>
+          <rect x={182+i*126} y="135" width="44" height="10" rx="5" fill={ac} opacity=".15"/>
+          <rect x={184+i*126} y="137" width="40" height="6" rx="3" fill={ac} opacity=".35"/>
+        </g>
+      ))}
+      {/* Table */}
+      <rect x="174" y="172" width="366" height="1" fill="#1e2433"/>
+      {[0,1,2,3].map(i => (
+        <g key={i}>
+          <rect x="174" y={180+i*22} width="366" height="20" rx="2"
+            fill={i%2===0 ? "#0f1318" : "#0d1117"}/>
+          <rect x="182" y={185+i*22} width="60" height="6" rx="3" fill="#1e2433"/>
+          <rect x="280" y={185+i*22} width="50" height="6" rx="3" fill="#1e2433"/>
+          <rect x="460" y={185+i*22} width="50" height="6" rx="3" fill={ac} opacity=".25"/>
+        </g>
+      ))}
+      {/* Faint title */}
+      <text x="280" y="155" textAnchor="middle" fill={ac} fontSize="18"
+        fontFamily="serif" opacity=".07" fontStyle="italic">{title}</text>
+    </svg>
+  );
 }
-.cert-split-card:hover .cert-visual-img { transform: scale(1.03); }
-.cert-img-overlay-dark {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(135deg, rgba(3,5,8,0.45) 0%, rgba(3,5,8,0.2) 100%);
+
+/* ══════════════════════════════════════════════
+   CERT IMAGE SVG
+══════════════════════════════════════════════ */
+function CertImg({ title, issuer, idx }) {
+  const acs  = [C.green, C.accent, C.blue, "#ce9178"];
+  const ac   = acs[idx % 4];
+  return (
+    <svg viewBox="0 0 380 260" xmlns="http://www.w3.org/2000/svg"
+      style={{ width: "100%", height: "100%", display: "block" }}>
+      <rect width="380" height="260" fill="#0c0c0c"/>
+      <rect x="10" y="10" width="360" height="240" fill="none" stroke={ac} strokeWidth="1" opacity=".3"/>
+      <rect x="16" y="16" width="348" height="228" fill="none" stroke={ac} strokeWidth=".4" opacity=".15"/>
+      {/* Ornament corners */}
+      {[[16,16],[364,16],[16,244],[364,244]].map(([x,y],i) => (
+        <g key={i} transform={`translate(${x},${y}) rotate(${i*90})`}>
+          <path d="M0 0 L12 0 M0 0 L0 12" stroke={ac} strokeWidth="1.5" fill="none" opacity=".5"/>
+        </g>
+      ))}
+      {/* Badge */}
+      <circle cx="190" cy="72" r="30" fill="none" stroke={ac} strokeWidth="1" opacity=".3"/>
+      <circle cx="190" cy="72" r="22" fill={ac} opacity=".08"/>
+      <text x="190" y="78" textAnchor="middle" fill={ac} fontSize="18" fontWeight="700" opacity=".75">
+        {issuer.charAt(0)}
+      </text>
+      {/* Issuer name */}
+      <text x="190" y="118" textAnchor="middle" fill={ac} fontSize="10"
+        fontFamily="monospace" letterSpacing="3" opacity=".6">
+        {issuer.toUpperCase()}
+      </text>
+      {/* Title */}
+      <text x="190" y="145" textAnchor="middle" fill="#ededeb" fontSize="11.5"
+        fontFamily="Georgia, serif" opacity=".8">Certificate of Completion</text>
+      {/* Course name (truncated) */}
+      <text x="190" y="168" textAnchor="middle" fill={ac} fontSize="9"
+        fontFamily="monospace" opacity=".6">
+        {title.length > 44 ? title.slice(0, 44) + "…" : title}
+      </text>
+      {/* Divider */}
+      <line x1="60" y1="192" x2="320" y2="192" stroke={ac} strokeWidth=".5" opacity=".2"/>
+      {/* Seal */}
+      <circle cx="190" cy="220" r="14" fill="none" stroke={ac} strokeWidth=".8" opacity=".3"/>
+      <circle cx="190" cy="220" r="9" fill={ac} opacity=".08"/>
+      <text x="190" y="224" textAnchor="middle" fill={ac} fontSize="9" opacity=".5">✓ VERIFIED</text>
+    </svg>
+  );
 }
-.cert-visual-content {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-@media (max-width:960px) {
-  .carousel-header { flex-direction:column; align-items:flex-start; }
-  .proj-split-card, .cert-split-card { grid-template-columns:1fr; min-height:auto; }
-  .proj-visual { min-height: 200px; border-right:none; border-bottom:1px solid var(--border); }
-  .proj-desc-panel { padding:24px 20px; }
-  .cert-visual { padding:28px 20px; border-right:none; border-bottom:1px solid var(--border); }
-  .cert-desc-panel { padding:24px 20px; }
-  .carousel-viewport { min-height: auto; }
-  .carousel-card-slot { position: relative; inset: auto; }
-}
 
-/* ACHIEVEMENTS */
-#achievements{background:transparent;}
-.achievements-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:56px;}
-.achievement-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:28px;transition:transform .25s var(--ease),box-shadow .25s,border-color .25s;position:relative;overflow:hidden;}
-.achievement-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--green),transparent);opacity:0;transition:opacity .3s;}
-.achievement-card:hover{transform:translateY(-4px);border-color:var(--border2);box-shadow:0 16px 48px rgba(0,0,0,.4);}
-.achievement-card:hover::after{opacity:1;}
-.achievement-rank{font-family:var(--ff-head);font-size:36px;font-weight:900;color:var(--green);letter-spacing:-.04em;line-height:1;margin-bottom:12px;}
-.achievement-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:6px;}
-.achievement-desc{font-size:13px;color:var(--ink3);line-height:1.6;}
-.achievement-date{font-family:var(--ff-mono);font-size:10px;color:var(--ink3);margin-top:12px;letter-spacing:.06em;}
-.achievement-badge{position:absolute;top:20px;right:20px;width:36px;height:36px;border-radius:50%;background:var(--green-dim);border:1px solid rgba(0,255,136,.2);display:flex;align-items:center;justify-content:center;font-size:16px;}
+/* ══════════════════════════════════════════════
+   PORTFOLIO DATA
+══════════════════════════════════════════════ */
+const DATA = {
+  name: "Mohit Godara",
+  role: "Software Engineer",
+  email: "mohitgodara816@gmail.com",
+  phone: "+91-9057164791",
+  github: "https://github.com/MOHITGODARA1",
+  linkedin: "https://www.linkedin.com/in/mohit-godara816/",
+  location: "Phagwara, Punjab, India",
+  stats: [
+    { num: "250+", label: "DSA Solved" },
+    { num: "1657", label: "LeetCode" },
+    { num: "4+", label: "Projects" },
+    { num: "Top 13.6%", label: "Global" },
+  ],
+  about: [
+    <span key="a">I'm a <strong>Computer Science undergraduate</strong> at Lovely Professional University building systems where performance meets design. My stack is MERN — but my real focus is on writing code that scales.</span>,
+    <span key="b">From <strong>MongoDB schema design</strong> to load-testing APIs with k6 under 100 virtual users — I approach engineering problems with measurement first, intuition second.</span>,
+    <span key="c">Outside of work, I solve LeetCode problems to sharpen algorithmic thinking — not as interview prep, but because pattern recognition makes production code better.</span>,
+  ],
+  skills: [
+    { cat: "Languages",             items: ["C++","JavaScript","Python","PHP"],                           featured: ["C++","JavaScript"] },
+    { cat: "Frameworks",            items: ["Node.js","React.js","Express.js","Socket.IO"],               featured: ["Node.js","React.js"] },
+    { cat: "Data & Infra",          items: ["MongoDB","SQL","AWS","Docker","k6"],                         featured: ["MongoDB"] },
+    { cat: "Tools",                 items: ["Git","Postman","Cloudinary","Twilio"],                       featured: [] },
+    { cat: "CS Fundamentals",       items: ["DSA","OOPs","OS","Computer Networks","DBMS"],                featured: [] },
+    { cat: "Soft Skills",           items: ["Problem Solving","Communication","Collaboration"],           featured: [] },
+    { cat: "Frontend & UI",         items: ["HTML","CSS","Tailwind CSS","Responsive Design","Framer Motion"], featured: ["Tailwind CSS"] },
+  { cat: "Backend & APIs",        items: ["REST APIs","Authentication (JWT)","WebSockets","API Design"],   featured: ["REST APIs","JWT"] },
+  ],
+  projects: [
+    { num:"01", title:"DocGen AI",  date:"Feb 2026",
+      bullets:["AI-powered GitHub repo analyzer using AST parsing + LLM integration","Engineered static analysis to map codebases into modules and relationships","Integrated ChatGPT API to reduce manual documentation effort by ~70%"],
+      tech:["React","Node.js","Express","MongoDB","Python","ChatGPT API"],
+      github:"https://github.com/MOHITGODARA1", demo:"https://docgen-ai-b085.onrender.com" },
+    { num:"02", title:"UniLink",    date:"Dec 2025",
+      bullets:["Real-time university collaboration with authentication, chat, post-sharing","k6 load tested (100 VUs): throughput ~120 req/s, latency 460ms → 350ms","Deployed on Railway — 0% failure rate under production stress"],
+      tech:["React","Node.js","Express","MongoDB","Socket.IO","Cloudinary"],
+      github:"https://github.com/MOHITGODARA1", demo:"https://unilink-1.onrender.com" },
+    { num:"03", title:"ApniDukan", date:"Jul 2025",
+      bullets:["Wholesale e-commerce platform for bulk retail-to-supplier transactions","Designed MongoDB schemas for products, carts, orders, inventory","REST APIs + Twilio (OTP) + Cloudinary (media)"],
+      tech:["React","Node.js","Express","MongoDB","Twilio","Cloudinary"],
+      github:"https://github.com/MOHITGODARA1", demo:null },
+  ],
+  experience: [
+    { role:"MERN Stack Training", org:"Allsoft Solutions", date:"Jun – Jul 2025",
+      bullets:["6-week MERN intensive: REST APIs, Git workflows, Express middleware","JWT-based authentication with bcrypt password hashing","Build-and-deploy cycle for full-stack applications"],
+      badges:["MERN Stack","REST APIs","JWT"] },
+  ],
+  education: [
+    { degree:"B.Tech — CS & Engineering", org:"Lovely Professional University", date:"Aug 2023 — Present", meta:"CGPA: 7.62" },
+    { degree:"Intermediate (Class XII)",  org:"Matrix School, Sikar, Rajasthan",  date:"Apr 2022 – Mar 2023", meta:"72.5%" },
+    { degree:"Matriculation (Class X)",   org:"P.B Sr. Sec. School, Surjgarh",   date:"Apr 2020 – Mar 2021", meta:"90%" },
+  ],
+  achievements: [
+    { icon:"◆", text:"Solved 250+ DSA problems on LeetCode — rated <strong>1657</strong>, placing in the global top 13%", sub:"Since Jan 2025" },
+    { icon:"◆", text:"Achieved <strong>6th rank</strong> out of 100 participants — Code-A-Haunt Hackathon", sub:"Nov 2024" },
+    { icon:"◆", text:"Sustained <strong>0% failure rate</strong> under 100 VU load — production UniLink APIs", sub:"Dec 2025" },
+  ],
+  certs: [
+    { name:"ChatGPT-4 Prompt Engineering: Generative AI & LLM", issuer:"Infosys",          date:"Aug 2025", link:"#" },
+    { name:"Project Completion — MERN Stack",                    issuer:"Allsoft",          date:"Jul 2025", link:"#" },
+    { name:"The Complete Java Certification Course",             issuer:"IamNeo",           date:"May 2025", link:"#" },
+    { name:"Bits and Bytes of Computer Networking",             issuer:"Google",           date:"Sep 2024", link:"#" },
+  ],
+};
 
+/* ══════════════════════════════════════════════
+   GLOBAL STYLES
+══════════════════════════════════════════════ */
+const GS = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html { scroll-behavior:smooth; font-size:16px; }
+    body {
+      background:${C.bg}; color:${C.text};
+      font-family:${F.sans}; overflow-x:hidden;
+      cursor:none; -webkit-font-smoothing:antialiased;
+      line-height:1.6;
+    }
+    ::selection { background:${C.accent}; color:${C.bg}; }
+    ::-webkit-scrollbar { width:3px; }
+    ::-webkit-scrollbar-track { background:${C.bg}; }
+    ::-webkit-scrollbar-thumb { background:${C.accentDim}; }
+    a { text-decoration:none; }
+    strong { font-weight:600; color:${C.text}; }
 
-/* ZIGZAG TIMELINE */
-#journey{background:transparent;}
-.timeline-zigzag{position:relative;margin-top:60px;display:flex;flex-direction:column;align-items:center;}
-.timeline-zigzag::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(to bottom,var(--green),rgba(0,255,136,.08));transform:translateX(-50%);}
-.tz-item{width:100%;display:grid;grid-template-columns:1fr 56px 1fr;align-items:center;margin-bottom:40px;}
-.tz-item:last-child{margin-bottom:0;}
-.tz-card-left{grid-column:1;text-align:right;padding-right:32px;}
-.tz-card-right{grid-column:3;text-align:left;padding-left:32px;}
-.tz-empty{visibility:hidden;}
-.tz-dot-wrap{grid-column:2;display:flex;justify-content:center;align-items:center;z-index:2;}
-.tz-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--green);background:var(--bg);transition:background .3s,box-shadow .3s;flex-shrink:0;}
-.tz-item:hover .tz-dot{background:var(--green);box-shadow:0 0 16px rgba(0,255,136,.7);}
-.tz-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;transition:transform .25s var(--ease),border-color .25s,box-shadow .25s;}
-.tz-card-left .tz-card:hover{transform:translateX(-4px);border-color:var(--border2);box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tz-card-right .tz-card:hover{transform:translateX(4px);border-color:var(--border2);box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tz-phase{font-family:var(--ff-mono);font-size:10px;color:var(--green);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;}
-.tz-title{font-family:var(--ff-head);font-size:16px;font-weight:700;color:var(--ink);letter-spacing:-.03em;margin-bottom:8px;}
-.tz-body{font-size:13px;color:var(--ink2);line-height:1.7;}
+    /* ── Scroll reveals ── */
+    .rv { opacity:0; transform:translateY(32px); transition:opacity .7s cubic-bezier(.16,1,.3,1), transform .7s cubic-bezier(.16,1,.3,1); }
+    .rv.in { opacity:1; transform:translateY(0); }
+    .rv-l { opacity:0; transform:translateX(-24px); transition:opacity .7s cubic-bezier(.16,1,.3,1), transform .7s cubic-bezier(.16,1,.3,1); }
+    .rv-l.in { opacity:1; transform:translateX(0); }
+    .rv-s { opacity:0; transform:scale(.96); transition:opacity .6s ease, transform .6s ease; }
+    .rv-s.in { opacity:1; transform:scale(1); }
+    .d1{transition-delay:.06s} .d2{transition-delay:.12s} .d3{transition-delay:.18s}
+    .d4{transition-delay:.24s} .d5{transition-delay:.30s} .d6{transition-delay:.36s}
 
-/* METRICS */
-#metrics{background:transparent;}
-.metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1px;background:var(--border);border-radius:var(--r-lg);overflow:hidden;margin-top:56px;}
-.metric-card{background:var(--surface);padding:28px;transition:background .2s;}
-.metric-card:hover{background:var(--surface2);}
-.metric-icon{font-size:18px;margin-bottom:16px;}
-.metric-val{font-family:var(--ff-head);font-size:38px;font-weight:900;color:var(--green);letter-spacing:-.04em;line-height:1;margin-bottom:6px;}
-.metric-label{font-size:12.5px;color:var(--ink3);line-height:1.5;margin-bottom:16px;}
-.metric-bar-track{height:1px;background:var(--border);}
-.metric-bar-fill{height:100%;background:var(--green);width:0%;transition:width 1.4s var(--ease);}
+    /* ── Keyframes ── */
+    @keyframes fillBar  { to { width:100%; } }
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+    @keyframes float    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+    @keyframes scrollDrop {
+      0%   { transform:scaleY(0); transform-origin:top;    opacity:1; }
+      50%  { transform:scaleY(1); transform-origin:top;    opacity:1; }
+      100% { transform:scaleY(1); transform-origin:bottom; opacity:0; }
+    }
+    @keyframes blogOpen {
+      from { opacity:0; transform:scale(.97) translateY(12px); }
+      to   { opacity:1; transform:scale(1)   translateY(0);    }
+    }
+    @keyframes blogClose {
+      from { opacity:1; transform:scale(1)   translateY(0);    }
+      to   { opacity:0; transform:scale(.97) translateY(12px); }
+    }
 
-/* CONTACT */
-#contact{background:transparent;}
-.contact-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:80px;align-items:start;}
-.contact-socials{display:flex;flex-direction:column;gap:10px;margin-top:32px;}
-.social-link{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);text-decoration:none;color:var(--ink);transition:transform .2s var(--ease),border-color .2s;font-family:var(--ff-mono);}
-.social-link:hover{transform:translateX(4px);border-color:var(--border2);}
-.social-icon{width:32px;height:32px;border-radius:6px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;border:1px solid var(--border2);}
-.social-name{font-size:12px;font-weight:500;color:var(--ink);}
-.social-handle{font-size:11px;color:var(--ink3);margin-top:1px;}
-.contact-form-wrap{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r-lg);}
-.form-header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-family:var(--ff-mono);font-size:11px;color:var(--ink3);}
-.form-header-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse-glow 2s infinite;}
-.form-body{padding:28px;}
-.form-group{margin-bottom:18px;}
-.form-label{display:block;font-family:var(--ff-mono);font-size:10px;font-weight:500;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase;margin-bottom:8px;}
-.form-input,.form-textarea{width:100%;padding:11px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg2);color:var(--ink);font-family:var(--ff-mono);font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s;}
-.form-input:focus,.form-textarea:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(0,255,136,.1);}
-.form-textarea{resize:vertical;min-height:120px;}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.btn-submit{width:100%;padding:12px;border-radius:var(--r);background:var(--green);color:var(--bg);border:none;font-family:var(--ff-mono);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;}
-.btn-submit:hover{background:var(--green2);box-shadow:0 8px 24px rgba(0,255,136,.25);}
-.btn-submit:disabled{opacity:.5;cursor:not-allowed;}
-.form-status{margin-top:12px;font-family:var(--ff-mono);font-size:11px;text-align:center;}
-.form-status.success{color:var(--green);} .form-status.error{color:var(--red);}
+    /* ── Nav links ── */
+    .nl { color:${C.muted}; font-family:${F.mono}; font-size:10.5px; letter-spacing:.1em;
+          text-transform:uppercase; text-decoration:none; position:relative; transition:color .2s; }
+    .nl::after { content:''; position:absolute; bottom:-2px; left:0; width:0; height:1px;
+                 background:${C.accent}; transition:width .22s; }
+    .nl:hover,.nl.active { color:${C.text}; }
+    .nl:hover::after,.nl.active::after { width:100%; }
 
-footer{padding:32px max(24px,5vw);border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;position:relative;z-index:2;}
-.footer-copy{font-family:var(--ff-mono);font-size:11px;color:var(--ink3);}
-.footer-back{font-family:var(--ff-mono);font-size:11px;color:var(--ink3);cursor:pointer;transition:color .2s;}
-.footer-back:hover{color:var(--green);}
+    /* ── Buttons ── */
+    .bp { display:inline-flex; align-items:center; gap:8px; padding:13px 28px;
+          background:${C.accent}; color:${C.bg}; font-family:${F.mono}; font-size:11px;
+          letter-spacing:.1em; text-transform:uppercase; border:none; cursor:none;
+          transition:background .2s, transform .18s; font-weight:500; }
+    .bp:hover { background:${C.text}; transform:translateY(-2px); }
+    .bg { display:inline-flex; align-items:center; gap:8px; padding:13px 28px;
+          border:1px solid ${C.border2}; color:${C.muted}; font-family:${F.mono}; font-size:11px;
+          letter-spacing:.1em; text-transform:uppercase; background:none; cursor:none;
+          transition:border-color .2s, color .2s, transform .18s; }
+    .bg:hover { border-color:${C.text}; color:${C.text}; transform:translateY(-2px); }
 
-.loader-wrap{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9998;transition:opacity .5s var(--ease),visibility .5s;}
-.loader-wrap.hidden{opacity:0;visibility:hidden;pointer-events:none;}
-.loader-inner{display:flex;flex-direction:column;align-items:flex-start;gap:14px;}
-.loader-line{font-family:var(--ff-mono);font-size:clamp(11px,1.4vw,13px);color:var(--green);letter-spacing:.05em;opacity:0;animation:slideUpIn .4s var(--ease) forwards;}
-.loader-line:nth-child(2){color:var(--ink2);animation-delay:.15s;}
-.loader-line:nth-child(3){color:var(--ink3);animation-delay:.30s;}
-.loader-line:nth-child(4){color:var(--green);animation-delay:.45s;}
-.loader-bar-wrap{width:240px;height:1px;background:var(--border);overflow:hidden;margin-top:8px;}
-.loader-bar{height:100%;background:var(--green);animation:loadBarAnim 1.8s var(--ease) forwards;animation-delay:.6s;}
+    /* ── Skill tags ── */
+    .st { font-family:${F.mono}; font-size:11.5px; padding:6px 13px;
+          border:1px solid ${C.border}; color:${C.muted}; transition:border-color .2s,color .2s; cursor:default; }
+    .st:hover { border-color:${C.accentDim}; color:${C.text}; }
+    .st.ft { border-color:${C.accentDim}; color:${C.accent}; }
 
-@media (max-width:960px) {
-  .hero-layout,.about-grid,.contact-grid{grid-template-columns:1fr;gap:40px;}
-  .hero-layout .terminal-card{display:none;}
-  .nav-links,.btn-nav{display:none;}
-  .hamburger{display:flex;}
-  .form-row{grid-template-columns:1fr;}
-  .timeline-zigzag::before{left:16px;transform:none;}
-  .tz-item{grid-template-columns:32px 1fr;}
-  .tz-card-left{grid-column:2;text-align:left;padding-right:0;padding-left:16px;}
-  .tz-card-right{grid-column:2;text-align:left;padding-left:16px;}
-  .tz-dot-wrap{grid-column:1;justify-content:flex-start;padding-left:9px;}
-  .tz-empty{display:none;}
-}
-@media (max-width:560px) {
-  section{padding:80px 18px;}
-  .metrics-grid,.skills-grid{grid-template-columns:1fr 1fr;}
-}
-`;
+    /* ── Project cards ── */
+    .pc { background:${C.bg1}; position:relative; overflow:hidden;
+          transition:background .28s; display:flex; flex-direction:column; }
+    .pc::before { content:''; position:absolute; top:0; left:0; right:0; height:1px;
+                  background:${C.accent}; transform:scaleX(0); transform-origin:left; transition:transform .4s; }
+    .pc:hover { background:${C.bg2}; }
+    .pc:hover::before { transform:scaleX(1); }
 
-// ─── Animated Background ───────────────────────────────────────────────────
-function AnimatedBackground() {
-  const canvasRef = useRef(null);
+    /* ── Cert image cards ── */
+    .ci { position:relative; overflow:hidden; border:1px solid ${C.border};
+          cursor:pointer; transition:border-color .25s, transform .25s; display:block; }
+    .ci:hover { border-color:${C.accentDim}; transform:scale(1.025); }
+    .ci .cio { position:absolute; inset:0; background:rgba(8,8,8,.78);
+               opacity:0; display:flex; align-items:center; justify-content:center;
+               transition:opacity .25s; }
+    .ci:hover .cio { opacity:1; }
+
+    /* ── Blog cards ── */
+    .bc { background:${C.bg1}; border:1px solid ${C.border}; padding:32px;
+          display:flex; flex-direction:column; gap:16px; cursor:none;
+          transition:background .25s, border-color .25s, transform .25s;
+          position:relative; overflow:hidden; }
+    .bc::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px;
+                  background:${C.accent}; transform:scaleY(0); transform-origin:bottom; transition:transform .32s; }
+    .bc:hover { background:${C.bg2}; border-color:${C.accentDim}; transform:translateY(-3px); }
+    .bc:hover::before { transform:scaleY(1); }
+
+    /* ── Blog full-screen overlay ── */
+    .blog-overlay {
+      position:fixed; inset:0; background:${C.bg}; z-index:900;
+      overflow-y:auto; display:flex; flex-direction:column;
+    }
+    .blog-overlay.enter { animation:blogOpen .4s cubic-bezier(.16,1,.3,1) both; }
+    .blog-overlay.exit  { animation:blogClose .3s ease both; }
+    .blog-code {
+      background:${C.bg2}; border:1px solid ${C.border}; border-left:3px solid ${C.accent};
+      padding:24px 28px; border-radius:4px; overflow-x:auto;
+      font-family:${F.mono}; font-size:13px; line-height:1.8; color:#9cdcfe;
+    }
+    .blog-code .kw  { color:#569cd6; }
+    .blog-code .fn  { color:#4ec9b0; }
+    .blog-code .str { color:#ce9178; }
+    .blog-code .cm  { color:#5a6470; font-style:italic; }
+
+    /* ── Forms ── */
+    .fi { background:transparent; border:none; border-bottom:1px solid ${C.border};
+          padding:12px 0; color:${C.text}; font-family:${F.sans}; font-size:14px;
+          outline:none; transition:border-color .2s; resize:none; width:100%; }
+    .fi:focus { border-bottom-color:${C.accent}; }
+    .fi::placeholder { color:${C.muted}; }
+
+    /* ── Rows ── */
+    .dr { display:flex; align-items:flex-start; justify-content:space-between;
+          padding:16px 0; border-bottom:1px solid ${C.border}; gap:20px; }
+    .dr:first-child { border-top:1px solid ${C.border}; }
+    .cr { display:flex; align-items:center; justify-content:space-between;
+          padding:16px 0; border-bottom:1px solid ${C.border}; gap:16px;
+          transition:padding-left .2s; }
+    .cr:first-child { border-top:1px solid ${C.border}; }
+    .cr:hover { padding-left:8px; }
+    .ct { display:flex; align-items:center; justify-content:space-between;
+          padding:16px 0; border-bottom:1px solid ${C.border}; }
+    .ct:first-child { border-top:1px solid ${C.border}; }
+
+    /* ── Achievement items ── */
+    .ai { background:${C.bg1}; padding:32px; display:flex; flex-direction:column; gap:12px; transition:background .2s; }
+    .ai:hover { background:${C.bg2}; }
+    .sk { background:${C.bg1}; padding:28px; transition:background .2s; }
+    .sk:hover { background:${C.bg2}; }
+
+    /* ── Responsive ── */
+    @media(max-width:960px) {
+      .hm  { display:none!important; }
+      .sm  { display:flex!important; }
+      .tc  { grid-template-columns:1fr!important; }
+      .tci { grid-template-columns:1fr!important; }
+    }
+    @media(min-width:961px) { .sm { display:none!important; } }
+    @media(max-width:640px) {
+      .cig { grid-template-columns:1fr 1fr!important; }
+      .blg { grid-template-columns:1fr!important; }
+      .ag  { grid-template-columns:1fr!important; }
+    }
+  `}</style>
+);
+
+/* ══════════════════════════════════════════════
+   ANTI-GRAVITY CANVAS
+══════════════════════════════════════════════ */
+function Particles() {
+  const ref   = useRef(null);
+  const mouse = useRef({ x: -9999, y: -9999 });
+  const pts   = useRef([]);
+  const raf   = useRef(null);
+
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    let animId, w, h;
-    const particles = [];
+    const canvas = ref.current;
+    const ctx    = canvas.getContext("2d");
+    const resize = () => {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener("resize", resize);
 
-    function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+    pts.current = Array.from({ length: 75 }, () => {
+      const x = Math.random() * window.innerWidth;
+      const y = Math.random() * window.innerHeight;
+      return { x, y, hx: x, hy: y, vx: 0, vy: 0,
+        size: Math.random() * 1.5 + .4,
+        a: Math.random() * .28 + .06 };
+    });
 
-    class Particle {
-      constructor() { this.reset(); }
-      reset() {
-        this.x=Math.random()*w; this.y=Math.random()*h;
-        this.r=Math.random()*1.2+.2;
-        this.vx=(Math.random()-.5)*.22; this.vy=(Math.random()-.5)*.22;
-        this.alpha=Math.random()*.35+.05;
-        this.color=Math.random()>.7?"0,255,136":"77,166,255";
-      }
-      update(){this.x+=this.vx;this.y+=this.vy;if(this.x<0||this.x>w||this.y<0||this.y>h)this.reset();}
-      draw(){ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fillStyle=`rgba(${this.color},${this.alpha})`;ctx.fill();}
-    }
+    const loop = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const { x: mx, y: my } = mouse.current;
 
-    resize(); window.addEventListener("resize",resize);
-    for(let i=0;i<60;i++) particles.push(new Particle());
-
-    let t=0;
-    function draw() {
-      ctx.clearRect(0,0,w,h); t+=.003;
-      const gs=80;
-      for(let gx=0;gx<w;gx+=gs) for(let gy=0;gy<h;gy+=gs){ctx.beginPath();ctx.arc(gx,gy,.6,0,Math.PI*2);ctx.fillStyle="rgba(28,37,53,0.7)";ctx.fill();}
-      [{x:.15+Math.sin(t)*.08,y:.25+Math.cos(t*.6)*.08,c:"0,255,136"},{x:.85+Math.cos(t*.5)*.07,y:.7+Math.sin(t*.8)*.07,c:"77,166,255"},{x:.5+Math.sin(t*.4)*.1,y:.05,c:"139,111,255"}].forEach(o=>{
-        const ox=o.x*w,oy=o.y*h,r=Math.min(w,h)*.4;
-        const g=ctx.createRadialGradient(ox,oy,0,ox,oy,r);
-        g.addColorStop(0,`rgba(${o.c},0.035)`);g.addColorStop(1,`rgba(${o.c},0)`);
-        ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
-      });
-      particles.forEach(p=>{p.update();p.draw();});
-      for(let i=0;i<particles.length;i++) for(let j=i+1;j<particles.length;j++){
-        const dx=particles[i].x-particles[j].x,dy=particles[i].y-particles[j].y,d=Math.sqrt(dx*dx+dy*dy);
-        if(d<80){ctx.beginPath();ctx.strokeStyle=`rgba(0,255,136,${.04*(1-d/80)})`;ctx.lineWidth=.5;ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(particles[j].x,particles[j].y);ctx.stroke();}
-      }
-      animId=requestAnimationFrame(draw);
-    }
-    draw();
-    return()=>{cancelAnimationFrame(animId);window.removeEventListener("resize",resize);};
-  },[]);
-  return <canvas ref={canvasRef} id="bg-canvas"/>;
-}
-
-// ─── Typed text hook ───────────────────────────────────────────────────────
-function useTyped(roles) {
-  const [text,setText]=useState("");
-  const ri=useRef(0),ci=useRef(0),del=useRef(false);
-  useEffect(()=>{
-    let t;
-    function tick(){
-      const cur=roles[ri.current];
-      if(!del.current){ci.current++;setText(cur.slice(0,ci.current));if(ci.current===cur.length){del.current=true;t=setTimeout(tick,1800);return;}}
-      else{ci.current--;setText(cur.slice(0,ci.current));if(ci.current===0){del.current=false;ri.current=(ri.current+1)%roles.length;}}
-      t=setTimeout(tick,del.current?45:85);
-    }
-    t=setTimeout(tick,500);return()=>clearTimeout(t);
-  },[]);
-  return text;
-}
-
-// ─── Reveal on scroll ─────────────────────────────────────────────────────
-function useReveal() {
-  useEffect(()=>{
-    const els=document.querySelectorAll(".reveal,.reveal-left,.reveal-right,.reveal-scale");
-    const obs=new IntersectionObserver(entries=>{
-      entries.forEach(e=>{
-        if(e.isIntersecting){
-          e.target.classList.add("visible");
-          e.target.querySelectorAll("[data-width]").forEach(b=>b.style.width=b.dataset.width+"%");
-          obs.unobserve(e.target);
+      pts.current.forEach(p => {
+        const dx = p.x - mx, dy = p.y - my;
+        const d  = Math.sqrt(dx * dx + dy * dy);
+        if (d < 150 && d > 0) {
+          const s = (150 - d) / 150;
+          p.vx += (dx / d) * s * 5;
+          p.vy += (dy / d) * s * 5;
         }
+        p.vx += (p.hx - p.x) * .03;
+        p.vy += (p.hy - p.y) * .03;
+        p.vx *= .84; p.vy *= .84;
+        p.x  += p.vx; p.y  += p.vy;
       });
-    },{threshold:.08,rootMargin:"0px 0px -40px 0px"});
-    els.forEach(el=>obs.observe(el));return()=>obs.disconnect();
+
+      for (let i = 0; i < pts.current.length; i++) {
+        for (let j = i + 1; j < pts.current.length; j++) {
+          const dx = pts.current[i].x - pts.current[j].x;
+          const dy = pts.current[i].y - pts.current[j].y;
+          const d  = Math.sqrt(dx * dx + dy * dy);
+          if (d < 105) {
+            ctx.beginPath();
+            ctx.moveTo(pts.current[i].x, pts.current[i].y);
+            ctx.lineTo(pts.current[j].x, pts.current[j].y);
+            ctx.strokeStyle = `rgba(200,169,110,${(1 - d / 105) * .05})`;
+            ctx.lineWidth   = .5;
+            ctx.stroke();
+          }
+        }
+      }
+      pts.current.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200,169,110,${p.a})`;
+        ctx.fill();
+      });
+      raf.current = requestAnimationFrame(loop);
+    };
+    raf.current = requestAnimationFrame(loop);
+
+    const mv = e => { mouse.current.x = e.clientX; mouse.current.y = e.clientY; };
+    const ml = () => { mouse.current.x = -9999; mouse.current.y = -9999; };
+    window.addEventListener("mousemove",  mv);
+    window.addEventListener("mouseleave", ml);
+
+    return () => {
+      cancelAnimationFrame(raf.current);
+      window.removeEventListener("resize",    resize);
+      window.removeEventListener("mousemove", mv);
+      window.removeEventListener("mouseleave",ml);
+    };
+  }, []);
+
+  return <canvas ref={ref} style={{ position:"fixed", inset:0, zIndex:0, pointerEvents:"none", opacity:.75 }}/>;
+}
+
+/* ══════════════════════════════════════════════
+   CURSOR
+══════════════════════════════════════════════ */
+function Cursor() {
+  const d = useRef(null), r = useRef(null), p = useRef({ mx:0,my:0,rx:0,ry:0 });
+  useEffect(() => {
+    const mv = e => { p.current.mx = e.clientX; p.current.my = e.clientY; };
+    document.addEventListener("mousemove", mv);
+    let raf;
+    const tick = () => {
+      const { mx,my,rx,ry } = p.current;
+      if (d.current) { d.current.style.left=mx+"px"; d.current.style.top=my+"px"; }
+      p.current.rx += (mx-rx)*.15; p.current.ry += (my-ry)*.15;
+      if (r.current) { r.current.style.left=p.current.rx+"px"; r.current.style.top=p.current.ry+"px"; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const on  = () => r.current && (r.current.style.cssText += ";width:50px;height:50px;border-color:rgba(200,169,110,.65)");
+    const off = () => r.current && (r.current.style.cssText += ";width:34px;height:34px;border-color:rgba(255,255,255,.32)");
+    const t = setTimeout(() => {
+      document.querySelectorAll("a,button,.bc,.pc,.ci,.ai,.sk").forEach(el => {
+        el.addEventListener("mouseenter", on); el.addEventListener("mouseleave", off);
+      });
+    }, 600);
+    return () => { document.removeEventListener("mousemove",mv); cancelAnimationFrame(raf); clearTimeout(t); };
+  }, []);
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:9999,pointerEvents:"none",mixBlendMode:"difference"}}>
+      <div ref={d} style={{width:7,height:7,background:"#fff",borderRadius:"50%",position:"absolute",transform:"translate(-50%,-50%)"}}/>
+      <div ref={r} style={{width:34,height:34,border:"1px solid rgba(255,255,255,.32)",borderRadius:"50%",position:"absolute",transform:"translate(-50%,-50%)",transition:"width .2s,height .2s,border-color .2s"}}/>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   LOADER
+══════════════════════════════════════════════ */
+function Loader({ onDone }) {
+  const [gone, setGone] = useState(false);
+  useEffect(() => { const t = setTimeout(() => { setGone(true); onDone(); }, 2000); return () => clearTimeout(t); }, [onDone]);
+  return (
+    <div style={{position:"fixed",inset:0,background:C.bg,zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:28,opacity:gone?0:1,visibility:gone?"hidden":"visible",transition:"opacity .7s ease,visibility .7s ease",pointerEvents:gone?"none":"auto"}}>
+      <div style={{fontFamily:F.serif,fontSize:"clamp(26px,5vw,46px)",color:C.text,letterSpacing:".04em",fontWeight:400}}>Mohit Godara</div>
+      <div style={{width:220,height:1,background:C.border,overflow:"hidden"}}>
+        <div style={{height:"100%",width:0,background:C.accent,animation:"fillBar 1.7s ease forwards"}}/>
+      </div>
+      <div style={{fontFamily:F.mono,fontSize:10,letterSpacing:".18em",textTransform:"uppercase",color:C.muted}}>Loading Portfolio</div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   HOOKS
+══════════════════════════════════════════════ */
+function useScrollPct() {
+  const [p, setP] = useState(0);
+  useEffect(() => {
+    const fn = () => { const mx = document.documentElement.scrollHeight - window.innerHeight; setP(mx > 0 ? (window.scrollY / mx) * 100 : 0); };
+    window.addEventListener("scroll", fn, { passive: true });
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
+  return p;
+}
+function useActiveSection() {
+  const [a, setA] = useState("");
+  useEffect(() => {
+    const ids = ["about","skills","projects","experience","achievements","blog","contact"];
+    const fn  = () => { let c = ""; ids.forEach(id => { const el = document.getElementById(id); if (el && window.scrollY >= el.offsetTop - 220) c = id; }); setA(c); };
+    window.addEventListener("scroll", fn, { passive: true });
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
+  return a;
+}
+function useReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll(".rv,.rv-l,.rv-s");
+    const obs = new IntersectionObserver(entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("in"); }), { threshold: .08, rootMargin: "0px 0px -40px 0px" });
+    els.forEach(el => obs.observe(el));
+    return () => obs.disconnect();
   });
 }
 
-function useProgressBar(){
-  useEffect(()=>{
-    const bar=document.getElementById("progress-bar");
-    const fn=()=>{const el=document.documentElement;if(bar)bar.style.width=(el.scrollTop/(el.scrollHeight-el.clientHeight))*100+"%";};
-    window.addEventListener("scroll",fn);return()=>window.removeEventListener("scroll",fn);
-  },[]);
+/* ══════════════════════════════════════════════
+   SHARED PRIMITIVES
+══════════════════════════════════════════════ */
+const S   = { padding: "120px 40px", maxWidth: 1200, margin: "0 auto" };
+const Div = () => <div style={{ width:"100%", height:1, background:C.border, maxWidth:1200, margin:"0 auto" }}/>;
+
+function SH({ label, title }) {
+  return (
+    <>
+      <div className="rv" style={{ fontFamily:F.mono, fontSize:10, letterSpacing:".22em", textTransform:"uppercase", color:C.accent, marginBottom:14, display:"flex", alignItems:"center", gap:12 }}>
+        {label} <span style={{ flex:1, maxWidth:56, height:1, background:C.accentDim }}/>
+      </div>
+      <h2 className="rv d1" style={{ fontFamily:F.serif, fontSize:"clamp(34px,5vw,58px)", color:C.text, lineHeight:1.08, letterSpacing:"-.02em", marginBottom:56, fontWeight:400 }}
+        dangerouslySetInnerHTML={{ __html: title }}/>
+    </>
+  );
 }
 
-// ─── Horizontal Carousel with scroll hijack ───────────────────────────────
-function HorizontalCarousel({ items, renderCard, sectionId, eyebrow, heading, headingHighlight, subtext }) {
-  const [current, setCurrent] = useState(0);
-  const [animState, setAnimState] = useState("idle");
-  const sectionRef = useRef(null);
-  const cooldownRef = useRef(false);
-  const currentRef = useRef(0);
-  const total = items.length;
+function Mono({ children, style = {} }) {
+  return <span style={{ fontFamily:F.mono, fontSize:10, letterSpacing:".12em", textTransform:"uppercase", color:C.muted, ...style }}>{children}</span>;
+}
 
-  useEffect(() => { currentRef.current = current; }, [current]);
+const GithubIco = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>;
+const ExtIco    = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
 
-  const canGoNext = current < total - 1;
-  const canGoPrev = current > 0;
-
-  const navigate = useCallback((dir) => {
-    if (cooldownRef.current) return;
-    const next = currentRef.current + dir;
-    if (next < 0 || next >= total) return;
-
-    cooldownRef.current = true;
-    setAnimState(dir > 0 ? "leaving-left" : "leaving-right");
-
-    setTimeout(() => {
-      setCurrent(next);
-      currentRef.current = next;
-      setAnimState(dir > 0 ? "entering-right" : "entering-left");
-      setTimeout(() => {
-        setAnimState("idle");
-        cooldownRef.current = false;
-      }, 520);
-    }, 360);
-  }, [total]);
-
-  const viewportRef = useRef(null);
-
-  // Scroll hijack — only fires when the card viewport is FULLY visible
-  useEffect(() => {
-    const isMobile = () => window.innerWidth <= 960;
-
-    const handleWheel = (e) => {
-      if (isMobile()) return;
-
-      // Use the card viewport element, not the whole section
-      const card = viewportRef.current;
-      if (!card) return;
-
-      const rect = card.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const navH = 70; // nav bar height
-
-      // The card must be COMPLETELY visible — top below nav, bottom above fold
-      const cardFullyVisible = rect.top >= navH && rect.bottom <= vh;
-
-      if (!cardFullyVisible) return;
-
-      const delta = e.deltaY || e.deltaX;
-
-      if (delta > 0 && currentRef.current < total - 1) {
-        e.preventDefault();
-        navigate(1);
-      } else if (delta < 0 && currentRef.current > 0) {
-        e.preventDefault();
-        navigate(-1);
-      }
-      // At boundary → normal page scroll continues
-    };
-
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    return () => window.removeEventListener("wheel", handleWheel);
-  }, [navigate, total]);
-
-  // Touch swipe — horizontal
-  const touchStartX = useRef(null);
-  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
-  const handleTouchEnd = (e) => {
-    if (touchStartX.current === null) return;
-    const dx = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(dx) > 50) navigate(dx > 0 ? 1 : -1);
-    touchStartX.current = null;
-  };
-
-  const progressPct = ((current) / (total - 1)) * 100;
-
+/* ══════════════════════════════════════════════
+   NAVBAR
+══════════════════════════════════════════════ */
+function Navbar({ active, mob, setMob }) {
+  const [sc, setSc] = useState(false);
+  useEffect(() => { const fn = () => setSc(window.scrollY > 60); window.addEventListener("scroll", fn, { passive:true }); return () => window.removeEventListener("scroll", fn); }, []);
+  const links = [
+    {h:"#about",id:"about",l:"About"},{h:"#skills",id:"skills",l:"Skills"},
+    {h:"#projects",id:"projects",l:"Projects"},{h:"#experience",id:"experience",l:"Experience"},
+    {h:"#blog",id:"blog",l:"Blog"},{h:"#contact",id:"contact",l:"Contact"},
+  ];
   return (
-    <section
-      id={sectionId}
-      className="carousel-section"
-      ref={sectionRef}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
-      <div className="container">
-        {/* Header row */}
-        <div className="carousel-header">
-          <div className="carousel-header-left">
-            <span className="section-eyebrow reveal">{eyebrow}</span>
-            <h2 className="section-heading reveal reveal-delay-1">
-              {heading} <span className="hl">{headingHighlight}</span>
-            </h2>
-            {subtext && (
-              <p className="reveal reveal-delay-2" style={{color:"var(--ink3)",marginTop:10,fontSize:13,fontFamily:"var(--ff-mono)"}}>
-                {subtext}
+    <>
+      <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:200, padding:"18px 40px",display:"flex",alignItems:"center",justifyContent:"space-between", background:sc?"rgba(8,8,8,.92)":"transparent", backdropFilter:sc?"blur(16px)":"none", borderBottom:sc?`1px solid ${C.border}`:"1px solid transparent", transition:"background .3s,border-color .3s" }}>
+        <a href="#hero" style={{ fontFamily:F.serif, fontSize:20, color:C.text, letterSpacing:".04em", fontWeight:400 }}>MG.</a>
+        <ul style={{ display:"flex", gap:32, listStyle:"none" }} className="hm">
+          {links.map(l => <li key={l.id}><a href={l.h} className={`nl${active===l.id?" active":""}`}>{l.l}</a></li>)}
+        </ul>
+        <button className="sm" onClick={() => setMob(true)} style={{ background:"none",border:"none",cursor:"none",flexDirection:"column",gap:5 }}>
+          <span style={{ width:22,height:1,background:C.text,display:"block" }}/>
+          <span style={{ width:16,height:1,background:C.text,display:"block" }}/>
+        </button>
+      </nav>
+      {mob && (
+        <div style={{ position:"fixed",inset:0,background:C.bg,zIndex:500,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:32,animation:"fadeIn .25s ease" }}>
+          <button onClick={() => setMob(false)} style={{ position:"absolute",top:20,right:24,background:"none",border:"none",cursor:"none",color:C.muted,fontSize:22 }}>✕</button>
+          {links.map(l => <a key={l.id} href={l.h} onClick={() => setMob(false)} style={{ fontFamily:F.serif,fontSize:34,color:C.text,fontWeight:400 }}>{l.l}</a>)}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   HERO
+══════════════════════════════════════════════ */
+function Hero() {
+  return (
+    <section id="hero" style={{ minHeight:"100vh", display:"flex", flexDirection:"column", justifyContent:"flex-end", padding:"0 40px 80px", position:"relative", overflow:"hidden" }}>
+      {/* BG text */}
+      <div style={{ position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)", fontFamily:F.serif, fontSize:"clamp(90px,16vw,220px)", color:"transparent", WebkitTextStroke:"1px rgba(255,255,255,.022)", pointerEvents:"none", whiteSpace:"nowrap", letterSpacing:"-.02em", userSelect:"none" }}>MOHIT</div>
+
+      <div style={{ maxWidth:1200, margin:"0 auto", width:"100%", position:"relative", zIndex:1 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 340px", gap:70, alignItems:"flex-end" }} className="tc">
+          {/* Left */}
+          <div style={{ animation:"fadeUp .9s cubic-bezier(.16,1,.3,1) both" }}>
+            <div style={{ fontFamily:F.mono, fontSize:10.5, letterSpacing:".18em", textTransform:"uppercase", color:C.accent, marginBottom:28, display:"flex", alignItems:"center", gap:14 }}>
+              <span style={{ width:36, height:1, background:C.accent, display:"inline-block" }}/>
+              Software Engineer
+            </div>
+            <h1 style={{ fontFamily:F.serif, fontSize:"clamp(50px,9vw,116px)", lineHeight:.93, letterSpacing:"-.025em", color:C.text, marginBottom:36, fontWeight:500 }}>
+              Mohit<br/><em style={{ fontStyle:"italic", color:C.accent }}>Godara</em>
+            </h1>
+            <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:40, flexWrap:"wrap" }}>
+              <p style={{ maxWidth:460, color:C.muted, fontSize:15, lineHeight:1.78 }}>
+                <strong>Full-stack developer</strong> building performant web systems.
+                Specialised in <strong>MERN stack</strong> — sharp focus on API design,
+                real-time communication, and systems that scale under load.
               </p>
-            )}
-          </div>
-
-          <div className="carousel-controls">
-            <div className="carousel-counter-inline">
-              <span className="cur">{String(current + 1).padStart(2,"0")}</span>
-              <span style={{color:"var(--border2)",margin:"0 3px",fontSize:16}}>/</span>
-              <span>{String(total).padStart(2,"0")}</span>
+              <div style={{ display:"flex", gap:14, flexShrink:0 }}>
+                <a href="#projects" className="bp">View Work</a>
+                <a href="#contact"  className="bg">Hire Me</a>
+              </div>
             </div>
-            <div className="carousel-nav-btns">
-              <button className="carousel-btn" onClick={() => navigate(-1)} disabled={!canGoPrev} title="Previous">←</button>
-              <button className="carousel-btn" onClick={() => navigate(1)}  disabled={!canGoNext}  title="Next">→</button>
+            <div style={{ display:"flex", gap:44, marginTop:60, paddingTop:40, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
+              {DATA.stats.map(s => (
+                <div key={s.label}>
+                  <div style={{ fontFamily:F.serif, fontSize:34, color:C.text, lineHeight:1, marginBottom:4 }}>{s.num}</div>
+                  <Mono>{s.label}</Mono>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Avatar */}
+          <div className="hm" style={{ flexShrink:0, position:"relative", animation:"float 6s ease-in-out infinite, fadeIn 1s ease .4s both" }}>
+            <div style={{ width:"100%", aspectRatio:"480/560", position:"relative" }}>
+              <DeveloperAvatar/>
+            </div>
+            {/* Glow under avatar */}
+            <div style={{ position:"absolute", bottom:-10, left:"50%", transform:"translateX(-50%)", width:200, height:24, background:C.accent, filter:"blur(32px)", opacity:.08, borderRadius:"50%" }}/>
+            {/* Status badge */}
+            <div style={{ position:"absolute", bottom:60, right:-14, background:C.bg2, border:`1px solid ${C.border}`, padding:"10px 18px" }}>
+              <Mono style={{ color:C.accent, display:"block", marginBottom:3 }}>Available</Mono>
+              <span style={{ fontSize:11, color:C.text }}>for opportunities</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Progress bar */}
-        <div className="carousel-progress-track">
-          <div className="carousel-progress-fill" style={{width: `${progressPct}%`}}/>
-        </div>
+      {/* Scroll hint */}
+      <div className="hm" style={{ position:"absolute", right:40, bottom:80, display:"flex", flexDirection:"column", alignItems:"center", gap:8, writingMode:"vertical-rl" }}>
+        <div style={{ width:1, height:64, background:`linear-gradient(to bottom,${C.muted},transparent)`, animation:"scrollDrop 2.2s ease infinite" }}/>
+        <Mono>Scroll</Mono>
+      </div>
+    </section>
+  );
+}
 
-        {/* Viewport */}
-        <div className="carousel-viewport" ref={viewportRef}>
-          <div className={`carousel-card-slot${animState !== "idle" ? ` ${animState}` : ""}`}>
-            {renderCard(items[current], current)}
+/* ══════════════════════════════════════════════
+   ABOUT
+══════════════════════════════════════════════ */
+function About() {
+  return (
+    <section id="about" style={S}>
+      <SH label="About" title='Who I <em style="font-style:italic;color:#c8a96e">am</em>'/>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:80, alignItems:"start" }} className="tc">
+        <div className="rv d2">
+          {DATA.about.map((p, i) => <p key={i} style={{ color:C.muted, fontSize:15, lineHeight:1.85, marginBottom:i<DATA.about.length-1?20:0 }}>{p}</p>)}
+          <div style={{ display:"flex", gap:14, marginTop:36, flexWrap:"wrap" }}>
+            <a href={DATA.github}   target="_blank" rel="noreferrer" className="bg">GitHub ↗</a>
+            <a href={DATA.linkedin} target="_blank" rel="noreferrer" className="bg">LinkedIn ↗</a>
           </div>
         </div>
-
-        {/* Dot pills + scroll hint */}
-        <div className="carousel-dots">
-          {items.map((_, i) => (
-            <div
-              key={i}
-              className={`carousel-dot-pip${i === current ? " active" : ""}`}
-              onClick={() => { if (!cooldownRef.current) navigate(i > current ? 1 : -1); }}
-            />
+        <div className="rv d3">
+          {[
+            {k:"Email",    v:<a href={`mailto:${DATA.email}`} style={{color:C.accent}}>{DATA.email}</a>},
+            {k:"Phone",    v:DATA.phone},
+            {k:"Location", v:DATA.location},
+            {k:"Degree",   v:"B.Tech — CS & Eng."},
+            {k:"CGPA",     v:"7.62 / 10"},
+            {k:"Status",   v:<span style={{color:C.accent}}>Open to opportunities</span>},
+          ].map(({k,v}) => (
+            <div key={k} className="dr">
+              <Mono>{k}</Mono>
+              <span style={{ fontSize:13.5, color:C.text, textAlign:"right" }}>{v}</span>
+            </div>
           ))}
-        </div>
-
-        <div className="carousel-scroll-hint">
-          <div className="scroll-hint-arrow">
-            <span/><span/><span/>
-          </div>
-          <span>scroll down to navigate · swipe on mobile</span>
-          <div className="scroll-hint-arrow" style={{transform:"scaleX(-1)"}}>
-            <span/><span/><span/>
-          </div>
         </div>
       </div>
     </section>
   );
 }
 
-// ─── Icons ────────────────────────────────────────────────────────────────
-const GitHubIcon=()=><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>;
-const ExternalIcon=()=><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
-const DownloadIcon=()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
-
-// ─── Data ─────────────────────────────────────────────────────────────────
-const SKILLS=[
-  {lang:"LANG",      icon:"⚙️", name:"C++ / DSA",            desc:"Data Structures, Algorithms, competitive programming & system-level logic.",pct:85},
-  {lang:"FRAMEWORK", icon:"⚛️", name:"React.js",             desc:"Component architecture, hooks, state management & modern frontend patterns.",pct:80},
-  {lang:"LANG",      icon:"🟨", name:"JavaScript",           desc:"ES6+, async/await, closures, event loop & modern JS ecosystem.",pct:82},
-  {lang:"RUNTIME",   icon:"🟢", name:"Node.js / Express",    desc:"RESTful APIs, middleware, JWT auth & scalable server architecture.",pct:78},
-  {lang:"DATABASE",  icon:"🍃", name:"MongoDB",              desc:"Schema design, aggregation pipelines, indexing & Mongoose ODM.",pct:75},
-  {lang:"PLATFORM",  icon:"🤖", name:"Generative AI",        desc:"LLM integration, prompt engineering, ChatGPT API & AI-powered apps.",pct:65},
-  {lang:"LANG",      icon:"🐍", name:"Python / ML",          desc:"Machine learning fundamentals, data analysis & AI model integration.",pct:60},
-  {lang:"CONCEPT",   icon:"🔧", name:"System Design",        desc:"Scalable architecture, DB design, caching & distributed systems.",pct:70},
-  {lang:"TOOL",      icon:"🐳", name:"Docker / AWS",         desc:"Containerization, cloud deployment, CI/CD basics & DevOps fundamentals.",pct:55},
-  {lang:"PROTOCOL",  icon:"🔌", name:"Socket.io / WebSockets",desc:"Real-time bidirectional communication, live chat & event-driven apps.",pct:72},
-];
-
-const PROJECTS=[
-  // ▼ To add a project image: set img to a URL or relative path e.g. img:"/images/apni-dukan.png"
-  // If img is null/undefined, the icon emoji + code bg is shown as fallback
-  {num:"01",icon:"🏪",img:"../Apnidukan.png",title:"Apni Dukan",sub:"B2B Wholesale E-Commerce Platform",desc:"Scalable wholesale e-commerce platform adopted by 50+ retailers. Features bulk ordering, MongoDB multi-document transactions for atomic order placement, and full inventory management.",stack:["React","Node.js","Express","MongoDB","Twilio","Cloudinary","REST APIs"],improve:"Plan to add supplier dashboards, order analytics, credit-based purchasing & AI-assisted recommendations.",github:"https://github.com/MOHITGODARA1/Apni-DUkan-new",live:"https://apni-dukan-admin-omega.vercel.app/"},
-  {num:"02",icon:"🎓",img:"../Unilink.png",title:"UniLink",sub:"University Networking Platform",desc:"University platform engaging 1000+ students for project sharing and cross-department collaboration. JWT + bcrypt auth, real-time Socket.io chat.",stack:["React","Node.js","Express","MongoDB","Socket.io","Twilio","Cloudinary"],improve:"Plan to add university verification, group communities & AI-powered recommendations.",github:"https://github.com/MOHITGODARA1/UniLink",live:"https://unilink-1.onrender.com"},
-  {num:"03",icon:"🤖",img:"../Docgen.png",title:"DocGen AI",sub:"GitHub Repository Analyzer",desc:"AI-powered platform that ingests GitHub repos and generates structured analysis — dependencies, execution flow, architecture insights, and AI-generated documentation via ChatGPT pipelines.",stack:["React","Node.js","Express","MongoDB","Python","ChatGPT API","REST APIs"],improve:"Plan to add architecture diagrams, multi-repo comparison & auto-generated README.",github:"https://github.com/MOHITGODARA1/Docgen-AI",live:"https://docgen-ai-b085.onrender.com"},
-  {num:"04",icon:"🌾",img:null,title:"AgroTech AI",sub:"Smart Crop Recommendation System",desc:"AI-driven platform where farmers input soil parameters to receive intelligent crop recommendations combining ML models with practical agricultural constraints.",stack:["React","Node.js","Python","Machine Learning","OpenAI API","Express"],improve:"Plan to integrate weather APIs, yield prediction & multilingual support.",github:"https://github.com/MOHITGODARA1/agri-tech",live:"#"},
-];
-
-const ACHIEVEMENTS=[
-  {rank:"200+",title:"LeetCode Problems Solved",desc:"Across Easy, Medium & Hard — consistent practice since Jan 2025.",date:"Since Jan' 25",badge:"💡"},
-  {rank:"1,657",title:"LeetCode Contest Rating",desc:"Top 21% globally — consistent competitive programming performance.",date:"Feb' 26",badge:"🏆"},
-  {rank:"6th",title:"Code-A-Haunt Hackathon",desc:"Ranked 6th out of 100 participants in a competitive hackathon.",date:"Nov' 24",badge:"🥇"},
-  {rank:"7.62",title:"CGPA at LPU",desc:"B.Tech CSE at Lovely Professional University, Phagwara, Punjab.",date:"Since Aug' 23",badge:"🎓"},
-];
-
-const CERTS=[
-  // ▼ To add a cert image: set img to a URL e.g. img:"/certs/infosys.png"
-  // If img is null, the large emoji icon is shown as fallback
-  {icon:"🤖",img:"../infosys.png",issuer:"Infosys",title:"ChatGPT-4 Prompt Engineering: Generative AI & LLM",date:"Aug' 25",link:"#"},
-  {icon:"🏢",img:"../allsoft.png",issuer:"Allsoft Solutions",title:"Project Completion — MERN Stack Training",date:"Jul' 25",link:"#"},
-  {icon:"☕",img:"../java.png",issuer:"IamNeo",title:"The Complete Java Certification Course",date:"May' 25",link:"#"},
-  {icon:"⚙️",img:"../cpp.png",issuer:"IamNeo",title:"The Complete C++ Certification Course",date:"Dec' 24",link:"#"},
-  {icon:"🌐",img:"../google.png",issuer:"Google",title:"The Bits and Bytes of Computer Networking",date:"Sep' 24",link:"#"},
-];
-
-const JOURNEY=[
-  {phase:"Chapter 01 — Foundation",title:"Building the Base",body:"Mastering Data Structures & Algorithms using C++ and Java. Strong problem-solving fundamentals through consistent LeetCode practice and competitive programming."},
-  {phase:"Chapter 02 — Full Stack",title:"Expanding Horizons",body:"Designing scalable backend systems, RESTful APIs, and database schemas. Building full-stack applications with React, Node.js, Express, and MongoDB."},
-  {phase:"Chapter 03 — Gen AI",title:"From Models to Meaning",body:"Learning Generative AI fundamentals — LLMs, prompt engineering, embeddings, and practical ChatGPT API integration for real-world features."},
-  {phase:"Chapter 04 — System Thinking",title:"Thinking in Constraints",body:"Solving critical LeetCode problems while developing a system-level mindset. Understanding trade-offs in distributed systems, DB design, and caching."},
-];
-
-const METRICS=[
-  {icon:"🎯",val:"200+",label:"LeetCode problems solved",pct:78},
-  {icon:"🏆",val:"1,657",label:"Contest rating — Top 21% globally",pct:65},
-  {icon:"✅",val:"5",label:"Certifications completed",pct:85},
-  {icon:"📁",val:"4+",label:"Production projects shipped",pct:70},
-];
-
-// ─── Card renderers ────────────────────────────────────────────────────────
-// Project stats per card
-const PROJ_STATS = {
-  "01": [{val:"50+",key:"RETAILERS"},{val:"MERN",key:"STACK"},{val:"REST",key:"API"}],
-  "02": [{val:"1K+",key:"USERS"},{val:"RT CHAT",key:"SOCKET"},{val:"JWT",key:"AUTH"}],
-  "03": [{val:"AI",key:"POWERED"},{val:"GPT-4",key:"ENGINE"},{val:"PYTHON",key:"BACKEND"}],
-  "04": [{val:"ML",key:"MODEL"},{val:"CROP AI",key:"ENGINE"},{val:"PYTHON",key:"BACKEND"}],
-};
-
-function renderProjectCard(p) {
-  const codeSample = `// ${p.title} — core logic\nasync function init() {\n  const db = await connect(MONGO_URI);\n  const app = express();\n  app.use(cors(), json());\n  app.use("/api", router);\n  app.listen(PORT);\n}\ninit().catch(console.error);`;
-  const stats = PROJ_STATS[p.num] || [];
-  const hasImg = Boolean(p.img);
-
+/* ══════════════════════════════════════════════
+   SKILLS
+══════════════════════════════════════════════ */
+function Skills() {
   return (
-    <div className="proj-split-card">
-      {/* LEFT — Visual panel */}
-      <div className="proj-visual">
-        {hasImg ? (
-          <>
-            <img src={p.img} alt={p.title} className="proj-visual-img"/>
-            <div className="proj-img-overlay-dark"/>
-            {/* Stats bar still shown over image */}
-            <div className="proj-visual-bottom" style={{position:"relative",zIndex:3}}>
-              <div className="proj-num-label">PROJECT_{p.num}</div>
-              <div className="proj-stat-row">
-                {stats.map(s => (
-                  <div key={s.key} className="proj-stat">
-                    <div className="proj-stat-val">{s.val}</div>
-                    <div className="proj-stat-key">{s.key}</div>
-                  </div>
+    <section id="skills" style={S}>
+      <SH label="Skills" title='Technical <em style="font-style:italic;color:#c8a96e">Arsenal</em>'/>
+      <div className="rv d2" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(255px,1fr))", gap:1, background:C.border, border:`1px solid ${C.border}` }}>
+        {DATA.skills.map(({ cat, items, featured }) => (
+          <div key={cat} className="sk">
+            <Mono style={{ color:C.accent, display:"block", marginBottom:18 }}>{cat}</Mono>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+              {items.map(item => <span key={item} className={`st${featured.includes(item)?" ft":""}`}>{item}</span>)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   PROJECTS
+══════════════════════════════════════════════ */
+function Projects() {
+  return (
+    <section id="projects" style={S}>
+      <SH label="Work" title='Selected <em style="font-style:italic;color:#c8a96e">Projects</em>'/>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))", gap:1, background:C.border, border:`1px solid ${C.border}` }}>
+        {DATA.projects.map((p, i) => (
+          <div key={p.title} className={`pc rv d${i+1}`}>
+            {/* Screenshot */}
+            <div style={{ height:180, overflow:"hidden", borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+              <ProjectShot title={p.title} idx={i}/>
+            </div>
+            <div style={{ padding:36, display:"flex", flexDirection:"column", flex:1 }}>
+              <Mono style={{ marginBottom:14 }}>{p.num} / {p.date.split(" ").pop()}</Mono>
+              <Mono style={{ color:C.accent, display:"block", marginBottom:12 }}>{p.date}</Mono>
+              <div style={{ fontFamily:F.serif, fontSize:24, color:C.text, marginBottom:18, lineHeight:1.18, fontWeight:500 }}>{p.title}</div>
+              <ul style={{ listStyle:"none", padding:0, marginBottom:24, flex:1 }}>
+                {p.bullets.map((b, j) => (
+                  <li key={j} style={{ fontSize:13.5, color:C.muted, lineHeight:1.78, marginBottom:7, paddingLeft:18, position:"relative" }}>
+                    <span style={{ position:"absolute", left:0, color:C.accentDim, fontSize:11 }}>—</span>{b}
+                  </li>
                 ))}
+              </ul>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:24 }}>
+                {p.tech.map(t => <span key={t} style={{ fontFamily:F.mono, fontSize:10, padding:"4px 10px", background:C.bg2, border:`1px solid ${C.border}`, color:C.muted, letterSpacing:".07em" }}>{t}</span>)}
+              </div>
+              <div style={{ display:"flex", gap:18 }}>
+                <a href={p.github} target="_blank" rel="noreferrer" style={{ fontFamily:F.mono, fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:C.accent, display:"flex", alignItems:"center", gap:6 }}><GithubIco/> GitHub</a>
+                {p.demo && <a href={p.demo} target="_blank" rel="noreferrer" style={{ fontFamily:F.mono, fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:C.accent, display:"flex", alignItems:"center", gap:6 }}><ExtIco/> Live Demo</a>}
               </div>
             </div>
-          </>
-        ) : (
-          <>
-            <div className="proj-code-bg">{codeSample}</div>
-            <div className="proj-visual-top">
-              <div className="proj-visual-gradient"/>
-              <div className="proj-icon-wrap">
-                <div className="proj-icon-circle">{p.icon}</div>
-                <div className="proj-type-tag">{p.sub.split(" ").slice(-2).join(" ")}</div>
-              </div>
-            </div>
-            <div className="proj-visual-bottom">
-              <div className="proj-num-label">PROJECT_{p.num}</div>
-              <div className="proj-stat-row">
-                {stats.map(s => (
-                  <div key={s.key} className="proj-stat">
-                    <div className="proj-stat-val">{s.val}</div>
-                    <div className="proj-stat-key">{s.key}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   EXPERIENCE + EDUCATION
+══════════════════════════════════════════════ */
+function TLItem({ item, delay, isLast }) {
+  return (
+    <div className={`rv d${delay} tci`} style={{ display:"grid", gridTemplateColumns:"170px 1px 1fr", gap:"0 40px", paddingBottom:isLast?0:52 }}>
+      <Mono style={{ textAlign:"right", paddingTop:4, lineHeight:1.6, display:"block" }}>{item.date}</Mono>
+      <div style={{ position:"relative", display:"flex", justifyContent:"center" }}>
+        <div style={{ width:9, height:9, borderRadius:"50%", background:C.accent, border:`2px solid ${C.bg}`, boxShadow:`0 0 0 1px ${C.accentDim}`, marginTop:2, flexShrink:0 }}/>
+        {!isLast && <div style={{ position:"absolute", top:12, bottom:-52, left:"50%", transform:"translateX(-50%)", width:1, background:C.border }}/>}
+      </div>
+      <div>
+        <div style={{ fontSize:16.5, fontWeight:500, color:C.text, marginBottom:5, lineHeight:1.35 }}>{item.role || item.degree}</div>
+        <Mono style={{ color:C.accent, display:"block", marginBottom:14, lineHeight:1.6 }}>{item.org}</Mono>
+        {item.bullets && (
+          <ul style={{ listStyle:"none", padding:0, fontSize:13, color:C.muted, lineHeight:1.8 }}>
+            {item.bullets.map((b, i) => (
+              <li key={i} style={{ paddingLeft:18, position:"relative", marginBottom:6 }}>
+                <span style={{ position:"absolute", left:0, color:C.accentDim, fontSize:11 }}>→</span>{b}
+              </li>
+            ))}
+          </ul>
+        )}
+        {item.meta && <div style={{ fontSize:13, color:C.muted }}>{item.meta}</div>}
+        {item.badges && (
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:14 }}>
+            {item.badges.map(b => <span key={b} style={{ fontFamily:F.mono, fontSize:10, padding:"3px 8px", border:`1px solid ${C.border}`, color:C.muted }}>{b}</span>)}
+          </div>
         )}
       </div>
+    </div>
+  );
+}
+function Experience() {
+  const items = [...DATA.experience, ...DATA.education];
+  return (
+    <section id="experience" style={S}>
+      <SH label="Journey" title='Experience &amp; <em style="font-style:italic;color:#c8a96e">Education</em>'/>
+      <div>{items.map((it, i) => <TLItem key={i} item={it} delay={Math.min(i+1,5)} isLast={i===items.length-1}/>)}</div>
+    </section>
+  );
+}
 
-      {/* RIGHT — Description panel */}
-      <div className="proj-desc-panel">
-        <div className="proj-desc-header">
-          <div className="proj-title-wrap">
-            <div className="proj-main-title">{p.title}</div>
-            <div className="proj-sub-title">{p.sub}</div>
+/* ══════════════════════════════════════════════
+   ACHIEVEMENTS + CERTS
+══════════════════════════════════════════════ */
+function Achievements() {
+  return (
+    <section id="achievements" style={S}>
+      <SH label="Recognition" title='Achievements &amp; <em style="font-style:italic;color:#c8a96e">Certs</em>'/>
+      {/* Achievement grid */}
+      <div className="rv d2 ag" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:1, background:C.border, border:`1px solid ${C.border}`, marginBottom:60 }}>
+        {DATA.achievements.map((a, i) => (
+          <div key={i} className="ai">
+            <div style={{ fontSize:22, color:C.accent, fontFamily:F.mono }}>{a.icon}</div>
+            <div style={{ fontSize:14, color:C.text, lineHeight:1.65 }} dangerouslySetInnerHTML={{ __html:a.text }}/>
+            <Mono>{a.sub}</Mono>
           </div>
-          <div className="proj-action-links">
-            <a href={p.github} target="_blank" rel="noreferrer" className="icon-btn" title="GitHub"><GitHubIcon/></a>
-            <a href={p.live}   target="_blank" rel="noreferrer" className="icon-btn" title="Live Demo"><ExternalIcon/></a>
+        ))}
+      </div>
+      {/* Cert image grid */}
+      <Mono style={{ display:"block", marginBottom:20, color:C.muted }} className="rv d3">Certificates</Mono>
+      <div className="rv d3 cig" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:40 }}>
+        {DATA.certs.map((c, i) => (
+          <a key={i} href={c.link} target="_blank" rel="noreferrer" className="ci" style={{ aspectRatio:"380/260" }}>
+            <CertImg title={c.name} issuer={c.issuer} idx={i}/>
+            <div className="cio">
+              <Mono style={{ color:C.accent }}>View Cert ↗</Mono>
+            </div>
+          </a>
+        ))}
+      </div>
+      {/* Cert list */}
+      <div className="rv d4">
+        {DATA.certs.map((c, i) => (
+          <div key={i} className="cr">
+            <span style={{ fontSize:14, color:C.text, flex:1 }}>{c.name}</span>
+            <Mono style={{ color:C.accent, flexShrink:0 }}>{c.issuer}</Mono>
+            <Mono style={{ flexShrink:0 }}>{c.date}</Mono>
+            <a href={c.link} target="_blank" rel="noreferrer" style={{ fontFamily:F.mono, fontSize:10, color:C.muted, border:`1px solid ${C.border}`, padding:"4px 10px", transition:"border-color .2s,color .2s" }}>View ↗</a>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   BLOG — FULL SCREEN READER
+══════════════════════════════════════════════ */
+function BlogReader({ blog, onClose }) {
+  const [pct, setPct] = useState(0);
+  const [closing, setClosing] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const handleClose = () => {
+    setClosing(true);
+    setTimeout(onClose, 280);
+  };
+
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const scrollable = el.scrollHeight - el.clientHeight;
+    setPct(scrollable > 0 ? (el.scrollTop / scrollable) * 100 : 0);
+  }, []);
+
+  const tagColor = { "Backend":C.green, "AI / LLM":C.accent, "DSA":C.blue, "Architecture":"#ce9178" };
+  const tc = tagColor[blog.tag] || C.accent;
+
+  const renderContent = (block, idx) => {
+    switch (block.type) {
+      case "h2":
+        return <h2 key={idx} style={{ fontFamily:F.serif, fontSize:"clamp(22px,3.5vw,32px)", color:C.text, marginTop:52, marginBottom:20, lineHeight:1.2, fontWeight:500, letterSpacing:"-.01em" }}>{block.text}</h2>;
+      case "p":
+        return <p key={idx} style={{ fontSize:"clamp(15px,1.5vw,17px)", color:C.muted, lineHeight:1.9, marginBottom:24 }}>{block.text}</p>;
+      case "code":
+        return (
+          <div key={idx} style={{ margin:"32px 0" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 16px", background:C.bg3, borderBottom:`1px solid ${C.border}` }}>
+              <Mono style={{ color:tc }}>{block.lang}</Mono>
+              <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+                {["#e05a5a","#e0aa5a","#5ae05a"].map(col => <div key={col} style={{ width:10, height:10, borderRadius:"50%", background:col, opacity:.7 }}/>)}
+              </div>
+            </div>
+            <pre className="blog-code" style={{ margin:0, borderTop:"none", borderRadius:"0 0 4px 4px" }}>
+              <code>{block.text}</code>
+            </pre>
+          </div>
+        );
+      default: return null;
+    }
+  };
+
+  return (
+    <div
+      className={`blog-overlay ${closing ? "exit" : "enter"}`}
+      ref={scrollRef}
+      onScroll={onScroll}
+    >
+      {/* Reading progress bar */}
+      <div style={{ position:"sticky", top:0, left:0, right:0, height:2, background:C.border, zIndex:10, flexShrink:0 }}>
+        <div style={{ height:"100%", background:tc, width:`${pct}%`, transition:"width .1s linear" }}/>
+      </div>
+
+      {/* Sticky header */}
+      <div style={{ position:"sticky", top:2, left:0, right:0, background:"rgba(8,8,8,.95)", backdropFilter:"blur(16px)", borderBottom:`1px solid ${C.border}`, padding:"16px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:10, flexShrink:0 }}>
+        <button onClick={handleClose} style={{ background:"none", border:"none", cursor:"none", display:"flex", alignItems:"center", gap:10, color:C.muted, transition:"color .2s", fontFamily:F.mono, fontSize:11, letterSpacing:".1em", textTransform:"uppercase" }}
+          onMouseEnter={e => e.currentTarget.style.color=C.text}
+          onMouseLeave={e => e.currentTarget.style.color=C.muted}>
+          ← Back
+        </button>
+        <div style={{ fontFamily:F.mono, fontSize:11, color:C.muted, letterSpacing:".08em", maxWidth:"50%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{blog.title}</div>
+        <Mono style={{ color:C.muted }}>{blog.readTime}</Mono>
+      </div>
+
+      {/* Content */}
+      <div style={{ maxWidth:740, margin:"0 auto", padding:"64px 40px 120px", flex:1, animation:"fadeUp .5s ease both" }}>
+        {/* Tag + meta */}
+        <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:28 }}>
+          <span style={{ fontFamily:F.mono, fontSize:10, padding:"5px 12px", border:`1px solid ${tc}`, color:tc, letterSpacing:".1em" }}>{blog.tag}</span>
+          <Mono>{blog.date}</Mono>
+          <span style={{ width:4, height:4, borderRadius:"50%", background:C.border }}/>
+          <Mono>{blog.readTime}</Mono>
+        </div>
+
+        {/* Title */}
+        <h1 style={{ fontFamily:F.serif, fontSize:"clamp(28px,5vw,48px)", color:C.text, lineHeight:1.12, letterSpacing:"-.02em", marginBottom:32, fontWeight:500 }}>{blog.title}</h1>
+
+        {/* Author */}
+        <div style={{ display:"flex", alignItems:"center", gap:14, paddingBottom:36, borderBottom:`1px solid ${C.border}`, marginBottom:40 }}>
+          <div style={{ width:40, height:40, borderRadius:"50%", background:`linear-gradient(135deg,${C.bg2},${C.bg3})`, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:F.serif, fontSize:16, color:C.accent }}>M</div>
+          <div>
+            <div style={{ fontSize:14, color:C.text, fontWeight:500 }}>Mohit Godara</div>
+            <Mono>Software Engineer · LPU</Mono>
           </div>
         </div>
 
-        <div className="proj-divider"/>
+        {/* Lead excerpt */}
+        <p style={{ fontSize:"clamp(16px,1.8vw,18px)", color:C.text, lineHeight:1.8, marginBottom:36, fontStyle:"italic", borderLeft:`2px solid ${tc}`, paddingLeft:20 }}>{blog.excerpt}</p>
 
-        <p className="proj-full-desc">{p.desc}</p>
+        {/* Body */}
+        {blog.content.map((block, i) => renderContent(block, i))}
 
-        <div className="proj-section-label">// tech_stack</div>
-        <div className="proj-tech-grid">
-          {p.stack.map(t => <span key={t} className="tech-pill">{t}</span>)}
-        </div>
-
-        <div className="proj-roadmap">
-          <div className="proj-roadmap-head">↗ ROADMAP</div>
-          <div className="proj-roadmap-text">{p.improve}</div>
+        {/* Footer */}
+        <div style={{ marginTop:64, paddingTop:40, borderTop:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div>
+            <div style={{ fontSize:14, color:C.text, marginBottom:4 }}>Mohit Godara</div>
+            <Mono>mohitgodara816@gmail.com</Mono>
+          </div>
+          <button onClick={handleClose} className="bg" style={{ cursor:"none" }}>← All Posts</button>
         </div>
       </div>
     </div>
   );
 }
 
-function renderCertCard(c, idx) {
-  const hasImg = Boolean(c.img);
-
-  return (
-    <div className="cert-split-card">
-      {/* LEFT — Visual */}
-      <div className="cert-visual" style={{overflow:"hidden"}}>
-        {hasImg ? (
-          <>
-            <img src={c.img} alt={c.issuer} className="cert-visual-img"/>
-            <div className="cert-img-overlay-dark"/>
-            <div className="cert-visual-content">
-              <div className="cert-verified-big">✓ VERIFIED</div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="cert-visual-glow"/>
-            <div className="cert-badge-big">{c.icon}</div>
-            <div className="cert-issuer-big">{c.issuer}</div>
-            <div className="cert-verified-big">✓ VERIFIED</div>
-          </>
-        )}
-      </div>
-
-      {/* RIGHT — Info */}
-      <div className="cert-desc-panel">
-        <div className="cert-index">CERT_{String(idx + 1).padStart(2,"0")}</div>
-        <div className="cert-main-title">{c.title}</div>
-        <div className="cert-issuer-label">Issued by {c.issuer}</div>
-        <div className="cert-divider"/>
-        <div className="cert-date-row">
-          <div className="cert-date-dot"/>
-          Completed&nbsp;<strong style={{color:"var(--ink)"}}>{c.date}</strong>
-        </div>
-        <a href={c.link} className="cert-cta-link">
-          View Certificate →
-        </a>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main App ─────────────────────────────────────────────────────────────
-export default function App() {
-  const [loaded,setLoaded]=useState(false);
-  const [mobileOpen,setMobileOpen]=useState(false);
-  const [formData,setFormData]=useState({name:"",email:"",number:"",message:""});
-  const [formStatus,setFormStatus]=useState("");
-  const [submitting,setSubmitting]=useState(false);
-  const typedText=useTyped(["Software Development Engineer","Full Stack Developer","DSA & C++ Enthusiast","Gen AI Explorer","Problem Solver"]);
-
-  useProgressBar(); useReveal();
-
-  useEffect(()=>{const s=document.createElement("style");s.textContent=GLOBAL_CSS;document.head.appendChild(s);return()=>document.head.removeChild(s);},[]);
-  useEffect(()=>{const t=setTimeout(()=>setLoaded(true),2200);return()=>clearTimeout(t);},[]);
-
-  const handleChange=useCallback(e=>setFormData(p=>({...p,[e.target.name]:e.target.value})),[]);
-  const handleSubmit=useCallback(async e=>{
-    e.preventDefault();setSubmitting(true);setFormStatus("");
-    try{
-      await emailjs.send("service_eo6kkri","template_y1amy1i",{name:formData.name,email:formData.email,number:formData.number,message:formData.message,time:new Date().toLocaleString()});
-      setFormStatus("success");setFormData({name:"",email:"",number:"",message:""});
-    }catch(err){setFormStatus("error");}
-    finally{setSubmitting(false);}
-  },[formData]);
+/* ══════════════════════════════════════════════
+   BLOG SECTION
+══════════════════════════════════════════════ */
+function Blog() {
+  const [open, setOpen] = useState(null);
+  const tagColor = { "Backend":C.green, "AI / LLM":C.accent, "DSA":C.blue, "Architecture":"#ce9178" };
 
   return (
     <>
-      <div id="progress-bar"/>
-      <AnimatedBackground/>
-
-      {/* LOADER */}
-      <div className={`loader-wrap${loaded?" hidden":""}`}>
-        <div className="loader-inner">
-          <div className="loader-line">$ ssh mohit@portfolio.dev</div>
-          <div className="loader-line">Connected. Loading profile...</div>
-          <div className="loader-line">Mounting projects, skills, achievements...</div>
-          <div className="loader-line">✓ Ready.</div>
-          <div className="loader-bar-wrap"><div className="loader-bar"/></div>
-        </div>
-      </div>
-
-      {/* NAV */}
-      <nav>
-        <div className="nav-inner">
-          <a href="#hero" className="nav-logo">
-            <span className="nav-logo-bracket">[</span>&nbsp;MG&nbsp;<span className="nav-logo-bracket">]</span>
-          </a>
-          <ul className="nav-links">
-            {["about","skills","projects","achievements","certifications","journey","contact"].map(s=>(
-              <li key={s}><a href={`#${s}`}>{s}</a></li>
-            ))}
-          </ul>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <a href="Mohit_CV.pdf" download className="btn-download" style={{padding:"7px 14px",fontSize:"11px"}}>
-              <DownloadIcon/>&nbsp;resume
-            </a>
-            <a href="#contact" className="btn-nav">hire_me()</a>
-            <button className="hamburger" onClick={()=>setMobileOpen(o=>!o)}><span/><span/><span/></button>
-          </div>
-        </div>
-      </nav>
-
-      {/* MOBILE MENU */}
-      <div id="mobile-menu" className={mobileOpen?"open":""}>
-        {["about","skills","projects","achievements","certifications","journey","contact"].map(s=>(
-          <a key={s} href={`#${s}`} onClick={()=>setMobileOpen(false)}>/{s}</a>
-        ))}
-        <a href="Mohit_Godara_Resume.pdf" download style={{color:"var(--green)"}}>⬇ download resume</a>
-      </div>
-
-      {/* HERO */}
-      <section id="hero">
-        <div className="container">
-          <div className="hero-layout">
-            <div>
-              <div className="hero-prompt reveal">
-                <span className="dollar">$</span>
-                <span style={{color:"var(--ink3)"}}>whoami</span>
+      <section id="blog" style={S}>
+        <SH label="Writing" title='Latest <em style="font-style:italic;color:#c8a96e">Thoughts</em>'/>
+        <div className="blg" style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:20 }}>
+          {BLOGS.map((b, i) => (
+            <div key={b.id} className={`bc rv d${(i%2)+1}`} onClick={() => setOpen(b)} role="button" tabIndex={0}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <span style={{ fontFamily:F.mono, fontSize:10, padding:"4px 10px", border:`1px solid ${tagColor[b.tag]||C.border}`, color:tagColor[b.tag]||C.muted, letterSpacing:".08em" }}>{b.tag}</span>
+                <Mono>{b.date}</Mono>
               </div>
-              <h1 className="hero-title reveal reveal-delay-1">MOHIT<br/><span className="name-green">GODARA</span></h1>
-              <div className="hero-role reveal reveal-delay-2">
-                <span style={{color:"var(--ink3)"}}>~/role:&nbsp;</span>
-                <span className="typed">{typedText}</span>
-                <span className="typed-cursor">█</span>
-              </div>
-              <p className="hero-desc reveal reveal-delay-3">
-                Building scalable backend systems, solving critical DSA problems in C++ and Java, and exploring the frontier of Generative AI — one commit at a time.
-              </p>
-              <div className="hero-ctas reveal reveal-delay-4">
-                <a href="#projects" className="btn-primary">./view-projects</a>
-                <a href="#contact" className="btn-secondary">./contact-me</a>
-                <a href="Mohit_CV.pdf" download className="btn-download"><DownloadIcon/>&nbsp;resume.pdf</a>
-              </div>
-              <div className="hero-meta reveal reveal-delay-5" style={{marginTop:36}}>
-                <div className="hero-meta-item"><div className="hero-meta-val">200+</div><div className="hero-meta-label">LC_SOLVED</div></div>
-                <div className="hero-meta-sep"/>
-                <div className="hero-meta-item"><div className="hero-meta-val">1,657</div><div className="hero-meta-label">RATING</div></div>
-                <div className="hero-meta-sep"/>
-                <div className="hero-meta-item"><div className="hero-meta-val">4+</div><div className="hero-meta-label">PROJECTS</div></div>
-                <div className="hero-meta-sep"/>
-                <div className="hero-meta-item"><div className="hero-meta-val">5</div><div className="hero-meta-label">CERTS</div></div>
+              <div style={{ fontFamily:F.serif, fontSize:21, color:C.text, lineHeight:1.28, letterSpacing:"-.01em", fontWeight:500 }}>{b.title}</div>
+              <p style={{ fontSize:13.5, color:C.muted, lineHeight:1.75, flex:1 }}>{b.excerpt}</p>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <Mono>{b.readTime}</Mono>
+                <Mono style={{ color:C.accent }}>Read Article →</Mono>
               </div>
             </div>
-
-            <div className="terminal-card reveal-right reveal-delay-2">
-              <div className="terminal-bar">
-                <div className="t-dot t-dot-r"/><div className="t-dot t-dot-y"/><div className="t-dot t-dot-g"/>
-                <div className="terminal-title">mohit@portfolio ~ </div>
-              </div>
-              <div className="terminal-body">
-                <div className="t-line"><span className="t-prompt">❯</span><span className="t-cmd"> cat developer.json</span></div>
-                <div className="t-gap"/>
-                <div className="t-line"><span className="t-out">{"{"}</span></div>
-                <div className="t-line"><span className="t-out">&nbsp;&nbsp;<span className="t-blue">"name"</span>: <span className="t-green">"Mohit Godara"</span>,</span></div>
-                <div className="t-line"><span className="t-out">&nbsp;&nbsp;<span className="t-blue">"role"</span>: <span className="t-green">"SDE / Full Stack"</span>,</span></div>
-                <div className="t-line"><span className="t-out">&nbsp;&nbsp;<span className="t-blue">"stack"</span>: [<span className="t-orange">"C++"</span>, <span className="t-orange">"JS"</span>, <span className="t-orange">"React"</span>],</span></div>
-                <div className="t-line"><span className="t-out">&nbsp;&nbsp;<span className="t-blue">"leetcode"</span>: <span className="t-purple">1657</span>,</span></div>
-                <div className="t-line"><span className="t-out">&nbsp;&nbsp;<span className="t-blue">"status"</span>: <span className="t-green">"open_to_work"</span></span></div>
-                <div className="t-line"><span className="t-out">{"}"}</span></div>
-                <div className="t-gap"/>
-                <div className="t-line"><span className="t-prompt">❯</span><span className="t-cmd"> git log --oneline -3</span></div>
-                <div className="t-gap"/>
-                <div className="t-line"><span className="t-out"><span className="t-orange">a3f2c1</span> feat: AgroTech AI crop system</span></div>
-                <div className="t-line"><span className="t-out"><span className="t-orange">b91d4e</span> feat: DocGen AI repo analyzer</span></div>
-                <div className="t-line"><span className="t-out"><span className="t-orange">c55f3a</span> feat: UniLink platform</span></div>
-                <div className="t-gap"/>
-                <div className="t-line"><span className="t-prompt">❯</span><span className="t-cmd"> <span className="t-cursor"/></span></div>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* ABOUT */}
-      <section id="about">
-        <div className="container">
-          <div className="about-grid">
-            <div className="reveal-left">
-              <div className="about-code-block">
-                <div className="code-block-header">
-                  <div className="t-dot t-dot-r"/><div className="t-dot t-dot-y"/><div className="t-dot t-dot-g"/>
-                  <div className="code-file">profile.cpp</div>
-                </div>
-                <div className="code-content">
-                  <div><span className="ln">1</span><span className="cm">// Mohit Godara — Developer Profile</span></div>
-                  <div><span className="ln">2</span><span className="kw">class </span><span className="fn">Developer</span><span className="ob"> {"{"}</span></div>
-                  <div><span className="ln">3</span><span className="kw">&nbsp;&nbsp;public:</span></div>
-                  <div><span className="ln">4</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;string </span><span className="fn">name</span><span className="ob"> = </span><span className="str">"Mohit Godara"</span><span className="ob">;</span></div>
-                  <div><span className="ln">5</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;string </span><span className="fn">uni</span><span className="ob"> = </span><span className="str">"LPU, Punjab"</span><span className="ob">;</span></div>
-                  <div><span className="ln">6</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;float </span><span className="fn">cgpa</span><span className="ob"> = </span><span className="num">7.62</span><span className="ob">;</span></div>
-                  <div><span className="ln">7</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;int </span><span className="fn">lc_rating</span><span className="ob"> = </span><span className="num">1657</span><span className="ob">;</span></div>
-                  <div><span className="ln">8</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;bool </span><span className="fn">open_to_work</span><span className="ob"> = </span><span className="num">true</span><span className="ob">;</span></div>
-                  <div><span className="ln">9</span></div>
-                  <div><span className="ln">10</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;vector&lt;string&gt; </span><span className="fn">skills</span><span className="ob"> = {"{"}</span></div>
-                  <div><span className="ln">11</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span className="str">"C++"</span><span className="ob">, </span><span className="str">"JavaScript"</span><span className="ob">, </span><span className="str">"React"</span><span className="ob">,</span></div>
-                  <div><span className="ln">12</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span className="str">"Node.js"</span><span className="ob">, </span><span className="str">"MongoDB"</span><span className="ob">,</span></div>
-                  <div><span className="ln">13</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span className="str">"Docker"</span><span className="ob">, </span><span className="str">"Socket.io"</span><span className="ob">, </span><span className="str">"Gen AI"</span></div>
-                  <div><span className="ln">14</span><span className="ob">&nbsp;&nbsp;&nbsp;&nbsp;{"}"}</span><span className="ob">;</span></div>
-                  <div><span className="ln">15</span><span className="ob">{"}"}</span><span className="ob">;</span></div>
-                </div>
-              </div>
-              <div className="about-tags" style={{marginTop:16}}>
-                {["C++ / DSA","Full Stack","Gen AI","System Design","Docker","Socket.io"].map(t=>(
-                  <span key={t} className="about-tag">{t}</span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="section-eyebrow reveal">about_me.md</span>
-              <h2 className="section-heading reveal reveal-delay-1" style={{marginBottom:24}}>Engineer by curiosity,<br/><span className="hl">builder</span> by choice</h2>
-              <p className="about-body reveal reveal-delay-2">I'm Mohit Godara — a B.Tech CSE student at LPU with a passion for building systems that scale. My foundation is rooted in Data Structures & Algorithms using C++ and Java, giving me the mental framework to tackle complex problems with precision.</p>
-              <p className="about-body reveal reveal-delay-3">From full-stack apps like Apni Dukan (50+ retailers) and UniLink (1000+ students) to AI-powered tools like DocGen AI — I enjoy turning ideas into production-ready software. Currently exploring the intersection of backend engineering and Generative AI.</p>
-              <p className="about-body reveal reveal-delay-4" style={{fontSize:13,color:"var(--ink3)"}}>6-week MERN training at Allsoft Solutions · LeetCode Top 21% · Hackathon 6th/100</p>
-              <div className="reveal reveal-delay-4" style={{marginTop:28,display:"flex",gap:10,flexWrap:"wrap"}}>
-                <a href="https://github.com/MOHITGODARA1" target="_blank" rel="noreferrer" className="btn-secondary" style={{fontSize:11}}><GitHubIcon/>&nbsp;GitHub</a>
-                <a href="https://www.linkedin.com/in/mohit-godara816/" target="_blank" rel="noreferrer" className="btn-secondary" style={{fontSize:11}}>LinkedIn ↗</a>
-                <a href="Mohit_CV.pdf" download className="btn-download" style={{fontSize:11}}><DownloadIcon/>&nbsp;resume.pdf</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SKILLS */}
-      <section id="skills">
-        <div className="container">
-          <span className="section-eyebrow reveal">tech_stack.json</span>
-          <h2 className="section-heading reveal reveal-delay-1">Tools of the <span className="hl">trade</span></h2>
-          <p className="reveal reveal-delay-2" style={{color:"var(--ink3)",marginTop:10,fontSize:13,fontFamily:"var(--ff-mono)"}}>// 10 technologies I ship with</p>
-          <div className="skills-grid">
-            {SKILLS.map((s,i)=>(
-              <div key={s.name} className={`skill-card reveal reveal-delay-${(i%4)+1}`}>
-                <div className="skill-lang">{s.lang}</div>
-                <div className="skill-name">{s.icon} {s.name}</div>
-                <div className="skill-desc">{s.desc}</div>
-                <div className="skill-bar-track"><div className="skill-bar-fill" data-width={s.pct}/></div>
-                <div className="skill-pct">{s.pct}%</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* PROJECTS — horizontal carousel */}
-      <HorizontalCarousel
-        items={PROJECTS}
-        renderCard={renderProjectCard}
-        sectionId="projects"
-        eyebrow="projects/"
-        heading="Experiments &"
-        headingHighlight="Builds"
-        subtext="// scroll down when centered · use arrows · swipe on mobile"
-      />
-
-      {/* ACHIEVEMENTS */}
-      <section id="achievements">
-        <div className="container">
-          <span className="section-eyebrow reveal">achievements.log</span>
-          <h2 className="section-heading reveal reveal-delay-1">Validated <span className="hl">Progress</span></h2>
-          <div className="achievements-grid">
-            {ACHIEVEMENTS.map((a,i)=>(
-              <div key={a.title} className={`achievement-card reveal-scale reveal-delay-${(i%4)+1}`}>
-                <div className="achievement-badge">{a.badge}</div>
-                <div className="achievement-rank">{a.rank}</div>
-                <div className="achievement-title">{a.title}</div>
-                <div className="achievement-desc">{a.desc}</div>
-                <div className="achievement-date">{a.date}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CERTIFICATIONS — horizontal carousel */}
-      <HorizontalCarousel
-        items={CERTS}
-        renderCard={renderCertCard}
-        sectionId="certifications"
-        eyebrow="certificates/"
-        heading="Certified"
-        headingHighlight="Skills"
-        subtext="// scroll down when centered · use arrows · swipe on mobile"
-      />
-
-      {/* JOURNEY — ZIGZAG */}
-      <section id="journey">
-        <div className="container">
-          <span className="section-eyebrow reveal" style={{justifyContent:"center"}}>journey.md</span>
-          <h2 className="section-heading reveal reveal-delay-1" style={{textAlign:"center"}}>How I <span className="hl">Think</span></h2>
-          <p className="reveal reveal-delay-2" style={{color:"var(--ink3)",marginTop:10,fontSize:13,fontFamily:"var(--ff-mono)",textAlign:"center"}}>
-            // a structured progression from fundamentals to frontier
-          </p>
-          <div className="timeline-zigzag">
-            {JOURNEY.map((j,i)=>{
-              const isLeft=i%2===0;
-              return(
-                <div key={j.title} className="tz-item">
-                  {isLeft?(
-                    <>
-                      <div className={`tz-card-left reveal-left reveal-delay-${(i%3)+1}`}>
-                        <div className="tz-card">
-                          <div className="tz-phase">{j.phase}</div>
-                          <div className="tz-title">{j.title}</div>
-                          <div className="tz-body">{j.body}</div>
-                        </div>
-                      </div>
-                      <div className="tz-dot-wrap"><div className="tz-dot"/></div>
-                      <div className="tz-empty"/>
-                    </>
-                  ):(
-                    <>
-                      <div className="tz-empty"/>
-                      <div className="tz-dot-wrap"><div className="tz-dot"/></div>
-                      <div className={`tz-card-right reveal-right reveal-delay-${(i%3)+1}`}>
-                        <div className="tz-card">
-                          <div className="tz-phase">{j.phase}</div>
-                          <div className="tz-title">{j.title}</div>
-                          <div className="tz-body">{j.body}</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* METRICS */}
-      <section id="metrics">
-        <div className="container">
-          <span className="section-eyebrow reveal">metrics.json</span>
-          <h2 className="section-heading reveal reveal-delay-1">By the <span className="hl">Numbers</span></h2>
-          <div className="metrics-grid">
-            {METRICS.map((m,i)=>(
-              <div key={m.val} className={`metric-card reveal-scale reveal-delay-${i+1}`}>
-                <div className="metric-icon">{m.icon}</div>
-                <div className="metric-val">{m.val}</div>
-                <div className="metric-label">{m.label}</div>
-                <div className="metric-bar-track"><div className="metric-bar-fill" data-width={m.pct}/></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CONTACT */}
-      <section id="contact">
-        <div className="container">
-          <div className="contact-grid">
-            <div>
-              <span className="section-eyebrow reveal">contact.sh</span>
-              <h2 className="section-heading reveal reveal-delay-1" style={{marginBottom:14}}>Let's <span className="hl">Talk</span></h2>
-              <p className="reveal reveal-delay-2" style={{color:"var(--ink2)",fontSize:14,lineHeight:1.7,maxWidth:360,marginBottom:8}}>
-                Open to full-time roles, internships, and collaborations. Have a project or opportunity? Let's build something.
-              </p>
-              <div className="contact-socials">
-                <a href="mailto:mohitgodara816@gmail.com" className="social-link reveal reveal-delay-1">
-                  <div className="social-icon">✉️</div>
-                  <div><div className="social-name">Email</div><div className="social-handle">mohitgodara816@gmail.com</div></div>
-                </a>
-                <a href="https://github.com/MOHITGODARA1" target="_blank" rel="noreferrer" className="social-link reveal reveal-delay-2">
-                  <div className="social-icon"><GitHubIcon/></div>
-                  <div><div className="social-name">GitHub</div><div className="social-handle">@MOHITGODARA1</div></div>
-                </a>
-                <a href="https://www.linkedin.com/in/mohit-godara816/" target="_blank" rel="noreferrer" className="social-link reveal reveal-delay-3">
-                  <div className="social-icon">💼</div>
-                  <div><div className="social-name">LinkedIn</div><div className="social-handle">mohit-godara816</div></div>
-                </a>
-                <a href="tel:+919057164791" className="social-link reveal reveal-delay-4">
-                  <div className="social-icon">📱</div>
-                  <div><div className="social-name">Phone</div><div className="social-handle">+91 9057164791</div></div>
-                </a>
-                <a href="Mohit_CV.pdf" download className="social-link reveal reveal-delay-4" style={{borderColor:"rgba(0,255,136,.3)"}}>
-                  <div className="social-icon" style={{background:"var(--green-dim)",borderColor:"rgba(0,255,136,.2)"}}>📄</div>
-                  <div><div className="social-name" style={{color:"var(--green)"}}>Download Resume</div><div className="social-handle">Mohit_Godara_Resume.pdf</div></div>
-                </a>
-              </div>
-            </div>
-            <div className="reveal-right reveal-delay-2">
-              <div className="contact-form-wrap">
-                <div className="form-header">
-                  <div className="form-header-dot"/>
-                  send_message.js — active
-                </div>
-                <div className="form-body">
-                  <form onSubmit={handleSubmit}>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label className="form-label">name</label>
-                        <input className="form-input" type="text" name="name" value={formData.name} onChange={handleChange} required placeholder="Your name"/>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">phone</label>
-                        <input className="form-input" type="tel" name="number" value={formData.number} onChange={handleChange} placeholder="+91 xxxxx xxxxx"/>
-                      </div>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">email</label>
-                      <input className="form-input" type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="you@example.com"/>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">message</label>
-                      <textarea className="form-textarea" name="message" value={formData.message} onChange={handleChange} required placeholder="// describe your project or opportunity..."/>
-                    </div>
-                    <button type="submit" className="btn-submit" disabled={submitting}>
-                      {submitting?"sending...":"$ ./send-message.sh"}
-                    </button>
-                    {formStatus==="success"&&<p className="form-status success">✓ message sent successfully!</p>}
-                    {formStatus==="error"&&<p className="form-status error">✗ failed to send. try again.</p>}
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer>
-        <div className="footer-copy">// © 2026 Mohit Godara · built with precision</div>
-        <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <a href="Mohit_Godara_Resume.pdf" download className="btn-download" style={{padding:"6px 14px",fontSize:"10px"}}>
-            <DownloadIcon/>&nbsp;resume.pdf
-          </a>
-          <span className="footer-back" onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}>^ back_to_top()</span>
-        </div>
-      </footer>
+      {open && <BlogReader blog={open} onClose={() => setOpen(null)}/>}
     </>
   );
 }
+
+/* ══════════════════════════════════════════════
+   CONTACT
+══════════════════════════════════════════════ */
+function Contact() {
+  const [st, setSt] = useState("idle");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  
+  const sub = async () => {
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      alert("Please fill all fields");
+      return;
+    }
+    
+    setSt("sending");
+    try {
+      const currentTime = new Date().toLocaleString();
+      
+      // Send email to portfolio owner
+      await emailjs.send(
+        "service_ffzvvpa",
+        "template_5x1ln1e",
+        {
+          from_name: name,
+          from_email: email,
+          message: message,
+          time: currentTime,
+        }
+      );
+      
+      // Send auto-reply to user
+      await emailjs.send(
+        "service_ffzvvpa",
+        "template_4d73qhr",
+        {
+          email: email,
+          from_name: name,
+          message: message,
+        }
+      );
+      
+      setSt("sent");
+      setName("");
+      setEmail("");
+      setMessage("");
+      setTimeout(() => setSt("idle"), 3000);
+    } catch (error) {
+      console.error("Email send failed:", error);
+      alert("Failed to send message. Please try again.");
+      setSt("idle");
+    }
+  };
+  
+  const contactTitle = `Let's <em style="font-style:italic;color:#c8a96e">Connect</em>`;
+  return (
+    <section id="contact" style={S}>
+      <SH label="Contact" title={contactTitle}/>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:80, alignItems:"start" }} className="tc">
+        <div className="rv d2">
+          <p style={{ fontSize:15, color:C.muted, lineHeight:1.8, marginBottom:40 }}>Open to internships, full-time roles, and interesting projects. Prefer work around backend systems, real-time applications, or anything that involves genuinely hard engineering problems.</p>
+          <div>
+            {[{l:"Email",v:DATA.email,h:`mailto:${DATA.email}`},{l:"Phone",v:DATA.phone,h:`tel:${DATA.phone}`},{l:"GitHub",v:"MOHITGODARA1",h:DATA.github},{l:"LinkedIn",v:"mohit-godara816",h:DATA.linkedin}].map(({l,v,h}) => (
+              <div key={l} className="ct">
+                <Mono>{l}</Mono>
+                <a href={h} target="_blank" rel="noreferrer" style={{ fontSize:13.5, color:C.text, transition:"color .2s" }} onMouseEnter={e=>e.target.style.color=C.accent} onMouseLeave={e=>e.target.style.color=C.text}>{v}</a>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rv d3" style={{ display:"flex", flexDirection:"column", gap:22 }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <label style={{ fontFamily:F.mono, fontSize:10, letterSpacing:".12em", textTransform:"uppercase", color:C.muted }}>Name</label>
+            <input type="text" placeholder="Your name" className="fi" value={name} onChange={(e) => setName(e.target.value)} disabled={st !== "idle"}/>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <label style={{ fontFamily:F.mono, fontSize:10, letterSpacing:".12em", textTransform:"uppercase", color:C.muted }}>Email</label>
+            <input type="email" placeholder="your@email.com" className="fi" value={email} onChange={(e) => setEmail(e.target.value)} disabled={st !== "idle"}/>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <label style={{ fontFamily:F.mono, fontSize:10, letterSpacing:".12em", textTransform:"uppercase", color:C.muted }}>Message</label>
+            <textarea className="fi" placeholder="What are you working on?" style={{ minHeight:96 }} value={message} onChange={(e) => setMessage(e.target.value)} disabled={st !== "idle"}/>
+          </div>
+          <button className="bp" style={{ alignSelf:"flex-start", background:st==="sent"?C.text:C.accent, opacity:st==="sending"?.6:1 }} onClick={sub} disabled={st!=="idle"}>
+            {st==="idle"&&"Send Message →"}{st==="sending"&&"Sending…"}{st==="sent"&&"Sent ✓"}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   FOOTER
+══════════════════════════════════════════════ */
+function Footer() {
+  return (
+    <footer style={{ borderTop:`1px solid ${C.border}`, padding:"40px", display:"flex", alignItems:"center", justifyContent:"space-between", maxWidth:1200, margin:"0 auto", flexWrap:"wrap", gap:20 }}>
+      <Mono>© 2026 Mohit Godara. Built with precision.</Mono>
+      <div style={{ display:"flex", gap:28 }}>
+        {[{l:"GitHub",h:DATA.github},{l:"LinkedIn",h:DATA.linkedin},{l:"Email",h:`mailto:${DATA.email}`}].map(({l,h}) => (
+          <a key={l} href={h} target="_blank" rel="noreferrer" style={{ fontFamily:F.mono, fontSize:11, color:C.muted, letterSpacing:".08em", transition:"color .2s" }} onMouseEnter={e=>e.target.style.color=C.accent} onMouseLeave={e=>e.target.style.color=C.muted}>{l}</a>
+        ))}
+      </div>
+    </footer>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   APP ROOT
+══════════════════════════════════════════════ */
+function App() {
+  const [loaded,  setLoaded]  = useState(false);
+  const [mob,     setMob]     = useState(false);
+  const progress = useScrollPct();
+  const active   = useActiveSection();
+  useReveal();
+
+  return (
+    <>
+      <GS/>
+      <Particles/>
+      {/* Top progress bar */}
+      <div style={{ position:"fixed", top:0, left:0, height:2, background:C.accent, zIndex:1000, width:`${progress}%`, transition:"width .1s linear" }}/>
+      <Cursor/>
+      <Loader onDone={() => setLoaded(true)}/>
+      <Navbar active={active} mob={mob} setMob={setMob}/>
+
+      <main style={{ opacity:loaded?1:0, transition:"opacity .5s ease .2s", position:"relative", zIndex:1 }}>
+        <Hero/>
+        <Div/><About/>
+        <Div/><Skills/>
+        <Div/><Projects/>
+        <Div/><Experience/>
+        <Div/><Achievements/>
+        <Div/><Blog/>
+        <Div/><Contact/>
+        <Footer/>
+      </main>
+    </>
+  );
+}
+
+export default App;
